@@ -13,7 +13,7 @@
         fluid
         v-model="dialogValues['name']"
         id="business"
-        placeholder="Kromholz Wassertechnik"
+        placeholder="WPK Prozesstechnik"
       ></InputText>
     </div>
     <div class="viewcustomerdialog-inputgroup">

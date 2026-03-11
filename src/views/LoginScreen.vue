@@ -44,7 +44,7 @@
       <Divider class="login-lwr-dvdr" type="dashed"></Divider>
       <div class="login-lwr-creds">
         <img src="../assets/Wassertechnik_Schrift.png" alt="" draggable="false" />
-        <span>2025 © Kromholz Wassertechnik </span>
+        <span>2026 © WPK Prozesstechnik </span>
       </div>
     </div>
   </div>

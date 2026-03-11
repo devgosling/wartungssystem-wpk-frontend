@@ -16,7 +16,7 @@
         v-model="$parent.inputValues.customer.name"
         id="business"
         disabled
-        placeholder="Kromholz Wassertechnik"
+        placeholder="WPK Prozesstechnik"
       ></InputText>
     </div>
     <div class="createidentifierdialog-inputchips">
