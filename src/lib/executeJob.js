@@ -47,6 +47,7 @@ export async function executeJob(job) {
       fileName: filename,
       monteur: inputValues.employee,
     }),
-    true
+    true,
+    "/sendbericht"
   )
 }
