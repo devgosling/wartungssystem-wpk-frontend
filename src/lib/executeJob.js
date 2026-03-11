@@ -35,7 +35,7 @@ export async function executeJob(job) {
 
   // Trigger Appwrite function
   await functions.createExecution(
-    '68f3d2b9001562f115c8',
+    '69b18cbb0036de675223',
     JSON.stringify({
       emailArray: inputValues.customer.emailArray,
       subject:
