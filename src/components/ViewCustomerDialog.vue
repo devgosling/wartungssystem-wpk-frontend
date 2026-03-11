@@ -187,8 +187,8 @@ export default {
       }
 
       await databases.updateDocument(
-        '6878f5900032addce7e5',
-        '68866dbd002a081f337a',
+        'wartungssystem',
+        'customer',
         this.data.$id,
         {
           name: this.dialogValues.name,

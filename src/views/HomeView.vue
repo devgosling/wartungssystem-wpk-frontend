@@ -83,7 +83,7 @@ export default {
           icon: 'fa-regular fa-file',
           color: 'rgb(96, 165, 250)',
           value: 'wartungsberichte',
-          table: '68866dc60038038dbe27',
+          table: 'wartungsbericht',
           redirectTo: '/wartungsberichte',
         },
         {
@@ -99,7 +99,7 @@ export default {
           icon: 'fa-solid fa-user-tie',
           color: 'rgb(251, 191, 36)',
           value: 'customers',
-          table: '68866dbd002a081f337a',
+          table: 'customer',
           redirectTo: '/customers',
         },
       ],
@@ -135,8 +135,8 @@ export default {
       let fetchedFiles = []
       do {
         const response = await databases.listDocuments(
-          '6878f5900032addce7e5',
-          '68866dc60038038dbe27',
+          'wartungssystem',
+          'wartungsbericht',
           [Query.limit(perPage), Query.offset((page - 1) * perPage)],
         )
         fetchedFiles = response.documents
@@ -197,7 +197,7 @@ export default {
       }
 
       try {
-        const customerList = await databases.listDocuments('6878f5900032addce7e5', tableID)
+        const customerList = await databases.listDocuments('wartungssystem', tableID)
 
         return customerList.total
       } catch (error) {

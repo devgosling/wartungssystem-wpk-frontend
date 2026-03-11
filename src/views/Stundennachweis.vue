@@ -1131,8 +1131,8 @@ export default {
 
       try {
         const customerList = await databases.listDocuments(
-          '6878f5900032addce7e5',
-          '68866dbd002a081f337a',
+          'wartungssystem',
+          'customer',
           [Query.orderAsc('$sequence')],
         )
 
@@ -1167,7 +1167,7 @@ export default {
         }
 
         do {
-          const response = await databases.listDocuments('6878f5900032addce7e5', 'stundenzettel', [
+          const response = await databases.listDocuments('wartungssystem', 'stundenzettel', [
             ...baseQueries,
             Query.offset((page - 1) * perPage),
           ])
@@ -1274,10 +1274,10 @@ export default {
       this.viewingBericht.loading = berichtIndex
       try {
         let fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.stundenzettelId,
         )
-        let fileData = await storage.getFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        let fileData = await storage.getFile('storage', data.stundenzettelId)
         let jwtObject = await account.createJWT()
         // Add cache-busting and no-store to prevent showing old cached version
         const cacheBuster = `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`
@@ -1330,11 +1330,11 @@ export default {
       this.downloadingBericht = berichtIndex
       try {
         let fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.stundenzettelId,
         )
 
-        let fileData = await storage.getFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        let fileData = await storage.getFile('storage', data.stundenzettelId)
         let jwtObject = await account.createJWT()
         let fileResponse = await fetch(fileDownload, {
           headers: { 'x-appwrite-jwt': jwtObject.jwt },
@@ -1405,8 +1405,8 @@ export default {
 
           try {
             if (!navigator.onLine) throw new Error('Offline')
-            await storage.deleteFile('6878f5cf00166fde91eb', data.stundenzettelId)
-            await databases.deleteDocument('6878f5900032addce7e5', 'stundenzettel', data.$id)
+            await storage.deleteFile('storage', data.stundenzettelId)
+            await databases.deleteDocument('wartungssystem', 'stundenzettel', data.$id)
 
             this.$toast.add({
               severity: 'success',
@@ -1573,10 +1573,10 @@ export default {
 
         // Download the existing PDF
         const fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.stundenzettelId,
         )
-        const fileData = await storage.getFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        const fileData = await storage.getFile('storage', data.stundenzettelId)
         const jwtObject = await account.createJWT()
         const fileResponse = await fetch(
           `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
@@ -1592,15 +1592,15 @@ export default {
         const [newPdfBytes] = await addCustomerSignatureToPDF(pdfBuffer, signatureBase64)
 
         // Delete old file and upload new one with same ID and same name
-        await storage.deleteFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        await storage.deleteFile('storage', data.stundenzettelId)
 
         const newFile = new File([newPdfBytes], fileData.name, {
           type: 'application/pdf',
         })
-        await storage.createFile('6878f5cf00166fde91eb', data.stundenzettelId, newFile)
+        await storage.createFile('storage', data.stundenzettelId, newFile)
 
         // Update the document in the database
-        await databases.updateDocument('6878f5900032addce7e5', 'stundenzettel', data.$id, {
+        await databases.updateDocument('wartungssystem', 'stundenzettel', data.$id, {
           unterschrieben_kunde: true,
         })
 
@@ -1728,10 +1728,10 @@ export default {
 
         // Download the existing PDF
         const fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.stundenzettelId,
         )
-        const fileData = await storage.getFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        const fileData = await storage.getFile('storage', data.stundenzettelId)
         const jwtObject = await account.createJWT()
         const fileResponse = await fetch(
           `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
@@ -1747,15 +1747,15 @@ export default {
         const [newPdfBytes] = await addControlSignatureToPDF(pdfBuffer, signatureBase64)
 
         // Delete old file and upload new one with same ID and same name
-        await storage.deleteFile('6878f5cf00166fde91eb', data.stundenzettelId)
+        await storage.deleteFile('storage', data.stundenzettelId)
 
         const newFile = new File([newPdfBytes], fileData.name, {
           type: 'application/pdf',
         })
-        await storage.createFile('6878f5cf00166fde91eb', data.stundenzettelId, newFile)
+        await storage.createFile('storage', data.stundenzettelId, newFile)
 
         // Update the document in the database
-        await databases.updateDocument('6878f5900032addce7e5', 'stundenzettel', data.$id, {
+        await databases.updateDocument('wartungssystem', 'stundenzettel', data.$id, {
           ueberprueft: true,
         })
 

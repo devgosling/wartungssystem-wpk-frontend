@@ -149,7 +149,7 @@ export default {
           this.deletingCustomer = customerIndex
 
           try {
-            await databases.deleteDocument('6878f5900032addce7e5', '68866dbd002a081f337a', data.$id)
+            await databases.deleteDocument('wartungssystem', 'customer', data.$id)
           } catch (err) {
             if (err instanceof AppwriteException) {
               switch (err.code) {
@@ -194,8 +194,8 @@ export default {
     async retrieveCustomers() {
       try {
         const customerList = await databases.listDocuments(
-          '6878f5900032addce7e5',
-          '68866dbd002a081f337a',
+          'wartungssystem',
+          'customer',
           [Query.orderAsc('$sequence')],
         )
 
@@ -205,8 +205,8 @@ export default {
         let documentList = []
         do {
           const response = await databases.listDocuments(
-            '6878f5900032addce7e5',
-            '68866dc60038038dbe27',
+            'wartungssystem',
+            'wartungsbericht',
             [Query.limit(perPage), Query.offset((page - 1) * perPage)],
           )
           fetchedFiles = response.documents

@@ -159,7 +159,7 @@ export default {
         }
       }
 
-      await databases.createDocument('6878f5900032addce7e5', '68866dbd002a081f337a', ID.unique(), {
+      await databases.createDocument('wartungssystem', 'customer', ID.unique(), {
         name: this.dialogValues.businessname,
         'address.street': this.dialogValues.street,
         'address.zipcode': this.dialogValues.zipcode.toString(),

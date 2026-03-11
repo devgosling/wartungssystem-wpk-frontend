@@ -314,8 +314,8 @@ export default {
         let wartungsberichteList = []
         do {
           const response = await databases.listDocuments(
-            '6878f5900032addce7e5',
-            '68866dc60038038dbe27',
+            'wartungssystem',
+            'wartungsbericht',
             [Query.limit(perPage), Query.offset((page - 1) * perPage)],
           )
           fetchedFiles = response.documents

@@ -5,8 +5,8 @@ export async function executeCustomerSignatureJob(job) {
   const { stundenzettelId, documentId, signatureBase64 } = job
 
   // Download the existing PDF
-  const fileDownload = await storage.getFileDownload('6878f5cf00166fde91eb', stundenzettelId)
-  const fileData = await storage.getFile('6878f5cf00166fde91eb', stundenzettelId)
+  const fileDownload = await storage.getFileDownload('storage', stundenzettelId)
+  const fileData = await storage.getFile('storage', stundenzettelId)
   const jwtObject = await account.createJWT()
   const fileResponse = await fetch(
     `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
@@ -22,15 +22,15 @@ export async function executeCustomerSignatureJob(job) {
   const [newPdfBytes] = await addCustomerSignatureToPDF(pdfBuffer, signatureBase64)
 
   // Delete old file and upload new one with same ID and same name
-  await storage.deleteFile('6878f5cf00166fde91eb', stundenzettelId)
+  await storage.deleteFile('storage', stundenzettelId)
 
   const newFile = new File([newPdfBytes], fileData.name, {
     type: 'application/pdf',
   })
-  await storage.createFile('6878f5cf00166fde91eb', stundenzettelId, newFile)
+  await storage.createFile('storage', stundenzettelId, newFile)
 
   // Update the document in the database
-  await databases.updateDocument('6878f5900032addce7e5', 'stundenzettel', documentId, {
+  await databases.updateDocument('wartungssystem', 'stundenzettel', documentId, {
     unterschrieben_kunde: true,
   })
 }
@@ -39,8 +39,8 @@ export async function executeControlSignatureJob(job) {
   const { stundenzettelId, documentId, signatureBase64 } = job
 
   // Download the existing PDF
-  const fileDownload = await storage.getFileDownload('6878f5cf00166fde91eb', stundenzettelId)
-  const fileData = await storage.getFile('6878f5cf00166fde91eb', stundenzettelId)
+  const fileDownload = await storage.getFileDownload('storage', stundenzettelId)
+  const fileData = await storage.getFile('storage', stundenzettelId)
   const jwtObject = await account.createJWT()
   const fileResponse = await fetch(
     `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
@@ -56,15 +56,15 @@ export async function executeControlSignatureJob(job) {
   const [newPdfBytes] = await addControlSignatureToPDF(pdfBuffer, signatureBase64)
 
   // Delete old file and upload new one with same ID and same name
-  await storage.deleteFile('6878f5cf00166fde91eb', stundenzettelId)
+  await storage.deleteFile('storage', stundenzettelId)
 
   const newFile = new File([newPdfBytes], fileData.name, {
     type: 'application/pdf',
   })
-  await storage.createFile('6878f5cf00166fde91eb', stundenzettelId, newFile)
+  await storage.createFile('storage', stundenzettelId, newFile)
 
   // Update the document in the database
-  await databases.updateDocument('6878f5900032addce7e5', 'stundenzettel', documentId, {
+  await databases.updateDocument('wartungssystem', 'stundenzettel', documentId, {
     ueberprueft: true,
   })
 }
@@ -72,6 +72,6 @@ export async function executeControlSignatureJob(job) {
 export async function executeDeleteStundenzettelJob(job) {
   const { stundenzettelId, documentId } = job
 
-  await storage.deleteFile('6878f5cf00166fde91eb', stundenzettelId)
-  await databases.deleteDocument('6878f5900032addce7e5', 'stundenzettel', documentId)
+  await storage.deleteFile('storage', stundenzettelId)
+  await databases.deleteDocument('wartungssystem', 'stundenzettel', documentId)
 }

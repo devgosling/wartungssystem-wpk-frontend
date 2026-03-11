@@ -86,16 +86,16 @@ export default {
       this.addingIdentifiers = true
 
       let customerData = await databases.getDocument(
-        '6878f5900032addce7e5',
-        '68866dbd002a081f337a',
+        'wartungssystem',
+        'customer',
         this.customerID,
       )
 
       customerData.identifiers.push(...this.dialogValues.identifiers)
 
       await databases.updateDocument(
-        '6878f5900032addce7e5',
-        '68866dbd002a081f337a',
+        'wartungssystem',
+        'customer',
         this.customerID,
         {
           identifiers: customerData.identifiers,

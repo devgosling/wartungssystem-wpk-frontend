@@ -15,12 +15,12 @@ export async function executeStundenzettelJob(job) {
   const file = new File([blob], filename, { type: 'application/pdf' })
 
   // Upload PDF
-  await storage.createFile('6878f5cf00166fde91eb', fileID, file)
+  await storage.createFile('storage', fileID, file)
 
   console.log(inputValues)
 
   // Create document in stundenzettel collection
-  await databases.createDocument('6878f5900032addce7e5', 'stundenzettel', ID.unique(), {
+  await databases.createDocument('wartungssystem', 'stundenzettel', ID.unique(), {
     mitarbeiter: inputValues.employee,
     erstellungsdatum: new Date(),
     input: JSON.stringify(inputValues),

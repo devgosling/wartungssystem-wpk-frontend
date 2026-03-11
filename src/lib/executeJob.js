@@ -16,12 +16,12 @@ export async function executeJob(job) {
   const file = new File([blob], filename, { type: 'application/pdf' })
 
   // Upload PDF
-  await storage.createFile('6878f5cf00166fde91eb', fileID, file)
+  await storage.createFile('storage', fileID, file)
 
   // Create document
   await databases.createDocument(
-    '6878f5900032addce7e5',
-    '68866dc60038038dbe27',
+    'wartungssystem',
+    'wartungsbericht',
     ID.unique(),
     {
       mitarbeiter: inputValues.employee,

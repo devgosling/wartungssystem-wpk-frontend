@@ -1182,8 +1182,8 @@ export default {
 
     async fetchEmployees() {
       const mitarbeiterList = await databases.listDocuments(
-        '6878f5900032addce7e5',
-        '68866db100220a383390',
+        'wartungssystem',
+        'mitarbeiter',
         [Query.orderAsc('$sequence')],
       )
 
@@ -1195,8 +1195,8 @@ export default {
       this.kunden = []
 
       const customerList = await databases.listDocuments(
-        '6878f5900032addce7e5',
-        '68866dbd002a081f337a',
+        'wartungssystem',
+        'customer',
         [Query.orderAsc('$sequence')],
       )
 
@@ -1213,8 +1213,8 @@ export default {
       let fetchedFiles = []
       do {
         const response = await databases.listDocuments(
-          '6878f5900032addce7e5',
-          '68866dc60038038dbe27',
+          'wartungssystem',
+          'wartungsbericht',
           [Query.limit(perPage), Query.offset((page - 1) * perPage)],
         )
         fetchedFiles = response.documents
@@ -1274,10 +1274,10 @@ export default {
       this.viewingBericht.loading = berichtIndex
       try {
         let fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.wartungsberichtid,
         )
-        let fileData = await storage.getFile('6878f5cf00166fde91eb', data.wartungsberichtid)
+        let fileData = await storage.getFile('storage', data.wartungsberichtid)
         let jwtObject = await account.createJWT()
         let fileResponse = await fetch(fileDownload, {
           headers: { 'x-appwrite-jwt': jwtObject.jwt },
@@ -1320,11 +1320,11 @@ export default {
       this.downloadingBericht = berichtIndex
       try {
         let fileDownload = await storage.getFileDownload(
-          '6878f5cf00166fde91eb',
+          'storage',
           data.wartungsberichtid,
         )
 
-        let fileData = await storage.getFile('6878f5cf00166fde91eb', data.wartungsberichtid)
+        let fileData = await storage.getFile('storage', data.wartungsberichtid)
         let jwtObject = await account.createJWT()
         let fileResponse = await fetch(fileDownload, {
           headers: { 'x-appwrite-jwt': jwtObject.jwt },
@@ -1386,8 +1386,8 @@ export default {
           this.deletingBericht = berichtIndex
 
           try {
-            await storage.deleteFile('6878f5cf00166fde91eb', data.wartungsberichtid)
-            await databases.deleteDocument('6878f5900032addce7e5', '68866dc60038038dbe27', data.$id)
+            await storage.deleteFile('storage', data.wartungsberichtid)
+            await databases.deleteDocument('wartungssystem', 'wartungsbericht', data.$id)
           } catch (err) {
             if (err instanceof AppwriteException) {
               switch (err.code) {
