@@ -99,7 +99,7 @@ async function guard(to, from, next) {
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth)
   const requiresUnauth = to.matched.some((record) => record.meta.requiresUnauth)
   const requiresTeam = to.matched.some((record) => record.meta.requiresTeam)
-  
+
   if (requiresAuth && !isAuth) next('/login')
   else if (requiresUnauth && isAuth) next('/')
   else if (requiresTeam) {
@@ -115,18 +115,18 @@ async function guard(to, from, next) {
           })
           if (members.indexOf(user.$id) !== -1) hasAccess = true
         } catch (err) {
-          hasAccess = false;
+          hasAccess = false
         }
         break
-        
-        default:
-          break
-        }
+
+      default:
+        break
+    }
     if (!hasAccess) next('/401')
-      else next()
+    else next()
   } else next()
 
-  document.title = 'KWT | ' + to.meta?.title ?? 'Panel'
+  document.title = 'WPK | ' + to.meta?.title ?? 'Panel'
   if (useInputStore().isEditingSomething) {
     useInputStore().setIsEditingSomething(false)
   }
