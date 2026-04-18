@@ -20,7 +20,7 @@
           accept="image/*"
           capture="environment"
           style="display: none"
-          @change="onFilesSelected($event, true)"
+          @change="onFilesSelected($event)"
         />
         <input
           ref="uploadInput"
@@ -28,7 +28,7 @@
           accept="image/*"
           multiple
           style="display: none"
-          @change="onFilesSelected($event, false)"
+          @change="onFilesSelected($event)"
         />
         <Button
           label="Foto aufnehmen"
@@ -176,7 +176,11 @@ export default {
             : null,
         })
       }
-      result.sort((a, b) => a.ownerName.localeCompare(b.ownerName))
+      result.sort((a, b) => {
+        if (a.ownerId === this.currentUserId) return -1
+        if (b.ownerId === this.currentUserId) return 1
+        return a.ownerName.localeCompare(b.ownerName)
+      })
       return result
     },
 
@@ -244,7 +248,7 @@ export default {
       }
     },
 
-    async onFilesSelected(event, isCapture) {
+    async onFilesSelected(event) {
       const files = Array.from(event.target.files || [])
       event.target.value = ''
       if (files.length === 0) return
