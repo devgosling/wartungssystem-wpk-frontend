@@ -6,12 +6,12 @@ import {
   executeControlSignatureJob,
   executeDeleteStundenzettelJob,
 } from './executeStundenzettelSignatureJob'
+import { executeImageUploadJob, executeImageDeleteJob } from './executeImageUploadJob'
 
 export async function processJobs() {
   const jobs = await getPendingJobs()
   for (const job of jobs) {
     try {
-      // Route to appropriate job executor based on type
       if (job.type === 'stundenzettel') {
         await executeStundenzettelJob(job)
       } else if (job.type === 'customer-signature') {
@@ -20,18 +20,21 @@ export async function processJobs() {
         await executeControlSignatureJob(job)
       } else if (job.type === 'delete-stundenzettel') {
         await executeDeleteStundenzettelJob(job)
+      } else if (job.type === 'image-upload') {
+        await executeImageUploadJob(job)
+      } else if (job.type === 'image-delete') {
+        await executeImageDeleteJob(job)
       } else {
         await executeJob(job)
       }
       await removeJob(job.id)
     } catch (err) {
       console.error('Failed to process job', err)
-      break // stop if network is unstable
+      break
     }
   }
 }
 
-// Listen for device going online
 let listenerRegistered = false
 
 export function setupOfflineJobProcessor() {
