@@ -19,19 +19,14 @@ export async function executeJob(job) {
   await storage.createFile('storage', fileID, file)
 
   // Create document
-  await databases.createDocument(
-    'wartungssystem',
-    'wartungsbericht',
-    ID.unique(),
-    {
-      mitarbeiter: inputValues.employee,
-      erstellungsdatum: new Date(),
-      kunde: JSON.stringify(inputValues.customer),
-      wartungsberichtid: fileID,
-      identifikator: inputValues.identifier ?? null,
-      type: inputValues.berichtType.filekey,
-    }
-  )
+  await databases.createDocument('wartungssystem', 'wartungsbericht', ID.unique(), {
+    mitarbeiter: inputValues.employee,
+    erstellungsdatum: new Date(),
+    kunde: JSON.stringify(inputValues.customer),
+    wartungsberichtid: fileID,
+    identifikator: inputValues.identifier ?? null,
+    type: inputValues.berichtType.filekey,
+  })
 
   // Trigger Appwrite function
   await functions.createExecution(
@@ -39,7 +34,9 @@ export async function executeJob(job) {
     JSON.stringify({
       emailArray: inputValues.customer.emailArray,
       subject:
-        (inputValues.berichtType.id === 'enthaertungsanlage' ? 'Überprüfungsbericht' : 'Wartungsbericht') +
+        (inputValues.berichtType.id === 'enthaertungsanlage'
+          ? 'Überprüfungsbericht'
+          : 'Wartungsbericht') +
         ' - ' +
         inputValues.berichtType.filekey,
       type: inputValues.berichtType.id === 'enthaertungsanlage' ? 1 : 0,
@@ -48,6 +45,6 @@ export async function executeJob(job) {
       monteur: inputValues.employee,
     }),
     true,
-    "/sendbericht"
+    '/sendbericht',
   )
 }
