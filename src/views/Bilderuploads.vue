@@ -93,7 +93,7 @@
       </div>
       <div v-else class="bilderuploads-detail-grid">
         <div
-          v-for="(img, index) in selectedFolderImages"
+          v-for="img in selectedFolderImages"
           :key="img.$id"
           class="bilderuploads-detail-grid-tile"
         >
@@ -101,7 +101,7 @@
             :src="thumbUrl(img)"
             :alt="selectedOwnerName"
             draggable="false"
-            @click="openLightbox(index)"
+            @click="openImage(img)"
           />
           <Button
             v-if="canDelete(img)"
@@ -114,54 +114,60 @@
           />
         </div>
       </div>
-      <Galleria
-        v-model:visible="lightboxVisible"
-        v-model:activeIndex="lightboxIndex"
-        :value="selectedFolderImages"
-        :fullScreen="true"
-        :showThumbnails="false"
-        :showItemNavigators="true"
-        :circular="true"
+      <Dialog
+        v-model:visible="viewingImageOpen"
+        maximizable
+        modal
+        style="width: min(70vw, 900px)"
+        @hide="onDialogHide"
       >
-        <template #item="slotProps">
-          <img
-            :src="fullUrl(slotProps.item)"
-            alt=""
-            style="max-width: 100%; max-height: 85vh; object-fit: contain"
-          />
-        </template>
-        <template #caption="slotProps">
-          <div class="bilderuploads-caption">
-            <div class="bilderuploads-caption-meta">
-              <i class="fa-regular fa-calendar"></i>
-              <span>{{ formatUploadDate(slotProps.item.$createdAt) }}</span>
-            </div>
-            <a
-              :href="downloadUrl(slotProps.item)"
-              class="bilderuploads-caption-download"
-              download
-            >
-              <i class="fa-regular fa-download"></i>
-              <span>Herunterladen</span>
-            </a>
+        <template #header>
+          <div v-if="viewingImage" class="bilderuploads-dialog-header">
+            <i class="fa-regular fa-calendar"></i>
+            <span>{{ formatUploadDate(viewingImage.$createdAt) }}</span>
           </div>
         </template>
-      </Galleria>
+        <img
+          v-if="viewingImage"
+          :src="fullUrl(viewingImage)"
+          alt=""
+          class="bilderuploads-dialog-img"
+        />
+        <template #footer>
+          <div v-if="viewingImage" class="bilderuploads-dialog-footer">
+            <Button
+              label="Herunterladen"
+              icon="fa-regular fa-download"
+              severity="contrast"
+              :loading="downloadingImage"
+              @click="downloadImage(viewingImage)"
+            />
+            <Button
+              v-if="canDelete(viewingImage)"
+              label="Löschen"
+              icon="fa-regular fa-trash"
+              severity="danger"
+              :loading="deletingImage"
+              @click="confirmDelete($event, viewingImage)"
+            />
+          </div>
+        </template>
+      </Dialog>
     </div>
   </div>
 </template>
 
 <script>
-import { Button, Card, Galleria, ProgressSpinner } from 'primevue'
+import { Button, Card, Dialog, ProgressSpinner } from 'primevue'
 import { account, databases, functions, storage, teams } from '@/lib/appwrite'
-import { ExecutionMethod, Query } from 'appwrite'
+import { AppwriteException, ExecutionMethod, Query } from 'appwrite'
 import { resizeImageFile } from '@/lib/imagePreprocess'
 import { enqueueJob } from '@/lib/offlineQueue'
 import { processJobs } from '@/lib/offlineJobProcessor'
 import { canDeleteImage } from '@/lib/permissions'
 
 export default {
-  components: { Button, Card, Galleria, ProgressSpinner },
+  components: { Button, Card, Dialog, ProgressSpinner },
 
   data() {
     return {
@@ -171,8 +177,10 @@ export default {
       currentUserId: null,
       selectedOwnerId: null,
       isAdmin: false,
-      lightboxVisible: false,
-      lightboxIndex: 0,
+      viewingImage: null,
+      viewingImageOpen: false,
+      deletingImage: false,
+      downloadingImage: false,
     }
   },
 
@@ -326,10 +334,6 @@ export default {
       return storage.getFileView('storage', img.associatedFile)
     },
 
-    downloadUrl(img) {
-      return storage.getFileDownload('storage', img.associatedFile)
-    },
-
     formatUploadDate(iso) {
       return new Date(iso).toLocaleString('de-DE', {
         day: '2-digit',
@@ -340,9 +344,43 @@ export default {
       })
     },
 
-    openLightbox(index) {
-      this.lightboxIndex = index
-      this.lightboxVisible = true
+    openImage(img) {
+      this.viewingImage = img
+      this.viewingImageOpen = true
+    },
+
+    onDialogHide() {
+      this.viewingImage = null
+    },
+
+    async downloadImage(img) {
+      this.downloadingImage = true
+      try {
+        const url = storage.getFileDownload('storage', img.associatedFile)
+        const fileMeta = await storage.getFile('storage', img.associatedFile)
+        const jwt = (await account.createJWT()).jwt
+        const res = await fetch(url, { headers: { 'x-appwrite-jwt': jwt } })
+        const blob = await res.blob()
+        const blobUrl = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = blobUrl
+        a.download = fileMeta.name
+        a.style.display = 'none'
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        URL.revokeObjectURL(blobUrl)
+      } catch (err) {
+        console.error('Download failed', err)
+        this.$toast.add({
+          severity: 'error',
+          summary: 'Fehler',
+          detail: 'Das Bild konnte nicht heruntergeladen werden.',
+          life: 5000,
+        })
+      } finally {
+        this.downloadingImage = false
+      }
     },
 
     canDelete(img) {
@@ -357,16 +395,54 @@ export default {
         rejectProps: { label: 'Abbrechen', severity: 'secondary', outlined: true },
         acceptProps: { label: 'Löschen', severity: 'danger' },
         accept: async () => {
-          await enqueueJob({
-            id: crypto.randomUUID(),
-            type: 'image-delete',
-            documentId: img.$id,
-            fileId: img.associatedFile,
-          })
-          if (navigator.onLine) {
-            await processJobs()
+          this.deletingImage = true
+          try {
+            if (navigator.onLine) {
+              await storage.deleteFile('storage', img.associatedFile)
+              await databases.deleteDocument('wartungssystem', 'imageupload', img.$id)
+            } else {
+              await enqueueJob({
+                id: crypto.randomUUID(),
+                type: 'image-delete',
+                documentId: img.$id,
+                fileId: img.associatedFile,
+              })
+              this.$toast.add({
+                severity: 'info',
+                summary: 'Offline',
+                detail: 'Das Bild wird gelöscht, sobald wieder eine Verbindung besteht.',
+                life: 4000,
+              })
+            }
+            this.viewingImageOpen = false
+          } catch (err) {
+            console.error('Delete failed', err)
+            if (err instanceof AppwriteException && err.code === 401) {
+              this.$toast.add({
+                severity: 'error',
+                summary: 'Keine Berechtigungen',
+                detail: 'Du bist nicht dazu berechtigt, dieses Bild zu löschen.',
+                life: 5000,
+              })
+            } else if (err instanceof AppwriteException && err.code === 404) {
+              this.$toast.add({
+                severity: 'error',
+                summary: 'Nicht gefunden',
+                detail: 'Das Bild wurde nicht gefunden.',
+                life: 5000,
+              })
+            } else {
+              this.$toast.add({
+                severity: 'error',
+                summary: 'Fehler',
+                detail: 'Das Bild konnte nicht gelöscht werden.',
+                life: 5000,
+              })
+            }
+          } finally {
+            this.deletingImage = false
+            await this.fetchImages()
           }
-          await this.fetchImages()
         },
       })
     },
@@ -510,37 +586,25 @@ export default {
   }
 }
 
-.bilderuploads-caption {
+.bilderuploads-dialog-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1rem;
-  background-color: rgba(0, 0, 0, 0.55);
-  color: white;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+}
 
-  &-meta {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-size: 0.95rem;
-  }
+.bilderuploads-dialog-img {
+  width: 100%;
+  max-height: 75vh;
+  object-fit: contain;
+  display: block;
+}
 
-  &-download {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 0.9rem;
-    border-radius: 0.4rem;
-    background-color: rgba(255, 255, 255, 0.15);
-    color: white;
-    text-decoration: none;
-    font-size: 0.9rem;
-    transition: background-color 0.15s;
-
-    &:hover {
-      background-color: rgba(255, 255, 255, 0.25);
-    }
-  }
+.bilderuploads-dialog-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
 }
 </style>
