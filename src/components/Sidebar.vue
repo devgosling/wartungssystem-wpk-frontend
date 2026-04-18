@@ -95,6 +95,7 @@ export default {
         { title: 'Kundenstammdaten', icon: 'fa-solid fa-user-tie', path: '/customers' },
         { title: 'Mitarbeiter', icon: 'fa-regular fa-users', path: '/employees' },
         { title: 'Stundennachweis', icon: 'fa-regular fa-clock', path: '/stundennachweis' },
+        { title: 'Bilderuploads', icon: 'fa-regular fa-images', path: '/bilderuploads' },
       ],
       username: null,
       sidebarOpen: false,
