@@ -11,6 +11,7 @@ import { AppwriteException } from 'appwrite'
 import { isUserLoggedIn } from '@/lib/utils'
 import { useInputStore } from '@/stores/inputStore'
 import Stundennachweis from '@/views/Stundennachweis.vue'
+import Bilderuploads from '@/views/Bilderuploads.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -59,6 +60,15 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         title: 'Stundennachweis',
+      },
+    },
+    {
+      path: '/bilderuploads',
+      name: 'bilderuploads',
+      component: Bilderuploads,
+      meta: {
+        requiresAuth: true,
+        title: 'Bilderuploads',
       },
     },
     {
