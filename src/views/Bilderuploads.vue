@@ -3,17 +3,35 @@
     <div class="bilderuploads-header">
       <h1>Bilderuploads</h1>
       <div class="bilderuploads-header-actions">
+        <input
+          ref="captureInput"
+          type="file"
+          accept="image/*"
+          capture="environment"
+          style="display: none"
+          @change="onFilesSelected($event, true)"
+        />
+        <input
+          ref="uploadInput"
+          type="file"
+          accept="image/*"
+          multiple
+          style="display: none"
+          @change="onFilesSelected($event, false)"
+        />
         <Button
           label="Foto aufnehmen"
           icon="fa-regular fa-camera"
           severity="secondary"
-          disabled
+          :disabled="!currentUserId"
+          @click="$refs.captureInput.click()"
         />
         <Button
           label="Hochladen"
           icon="fa-regular fa-upload"
           severity="contrast"
-          disabled
+          :disabled="!currentUserId"
+          @click="$refs.uploadInput.click()"
         />
       </div>
     </div>
@@ -61,8 +79,11 @@
 
 <script>
 import { Button, Card, ProgressSpinner } from 'primevue'
-import { databases, functions, storage } from '@/lib/appwrite'
+import { account, databases, functions, storage } from '@/lib/appwrite'
 import { ExecutionMethod, Query } from 'appwrite'
+import { resizeImageFile } from '@/lib/imagePreprocess'
+import { enqueueJob } from '@/lib/offlineQueue'
+import { processJobs } from '@/lib/offlineJobProcessor'
 
 export default {
   components: { Button, Card, ProgressSpinner },
@@ -72,6 +93,7 @@ export default {
       loading: true,
       images: [],
       userList: { users: [] },
+      currentUserId: null,
     }
   },
 
@@ -101,6 +123,12 @@ export default {
   },
 
   async mounted() {
+    try {
+      const user = await account.get()
+      this.currentUserId = user.$id
+    } catch (err) {
+      console.error('Failed to load current user', err)
+    }
     await Promise.all([this.fetchImages(), this.fetchUserList()])
     this.loading = false
   },
@@ -137,6 +165,52 @@ export default {
         console.error('Failed to fetch user list', err)
         this.userList = { users: [] }
       }
+    },
+
+    async onFilesSelected(event, isCapture) {
+      const files = Array.from(event.target.files || [])
+      event.target.value = ''
+      if (files.length === 0) return
+      if (!this.currentUserId) return
+
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) {
+          this.$toast.add({
+            severity: 'warn',
+            summary: 'Übersprungen',
+            detail: `${file.name} ist keine Bilddatei.`,
+            life: 3000,
+          })
+          continue
+        }
+        try {
+          const { base64, filename } = await resizeImageFile(file, {
+            maxEdge: 2048,
+            quality: 0.85,
+            owner: this.currentUserId,
+          })
+          await enqueueJob({
+            id: crypto.randomUUID(),
+            type: 'image-upload',
+            owner: this.currentUserId,
+            filename,
+            imageBase64: base64,
+          })
+        } catch (err) {
+          console.error('Image preprocess failed', err)
+          this.$toast.add({
+            severity: 'error',
+            summary: 'Fehler',
+            detail: `${file.name} konnte nicht verarbeitet werden.`,
+            life: 4000,
+          })
+        }
+      }
+
+      if (navigator.onLine) {
+        await processJobs()
+      }
+      await this.fetchImages()
     },
 
     resolveOwnerName(ownerId) {
