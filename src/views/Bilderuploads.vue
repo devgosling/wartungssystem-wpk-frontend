@@ -124,7 +124,27 @@
         :circular="true"
       >
         <template #item="slotProps">
-          <img :src="fullUrl(slotProps.item)" alt="" style="max-width: 100%; max-height: 100vh" />
+          <img
+            :src="fullUrl(slotProps.item)"
+            alt=""
+            style="max-width: 100%; max-height: 85vh; object-fit: contain"
+          />
+        </template>
+        <template #caption="slotProps">
+          <div class="bilderuploads-caption">
+            <div class="bilderuploads-caption-meta">
+              <i class="fa-regular fa-calendar"></i>
+              <span>{{ formatUploadDate(slotProps.item.$createdAt) }}</span>
+            </div>
+            <a
+              :href="downloadUrl(slotProps.item)"
+              class="bilderuploads-caption-download"
+              download
+            >
+              <i class="fa-regular fa-download"></i>
+              <span>Herunterladen</span>
+            </a>
+          </div>
         </template>
       </Galleria>
     </div>
@@ -171,9 +191,7 @@ export default {
           ownerId,
           ownerName: this.resolveOwnerName(ownerId),
           count: imgs.length,
-          coverUrl: latest
-            ? storage.getFilePreview('storage', latest.associatedFile, 400, 400)
-            : null,
+          coverUrl: latest ? storage.getFileView('storage', latest.associatedFile) : null,
         })
       }
       result.sort((a, b) => {
@@ -301,11 +319,25 @@ export default {
     },
 
     thumbUrl(img) {
-      return storage.getFilePreview('storage', img.associatedFile, 400, 400)
+      return storage.getFileView('storage', img.associatedFile)
     },
 
     fullUrl(img) {
       return storage.getFileView('storage', img.associatedFile)
+    },
+
+    downloadUrl(img) {
+      return storage.getFileDownload('storage', img.associatedFile)
+    },
+
+    formatUploadDate(iso) {
+      return new Date(iso).toLocaleString('de-DE', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
     },
 
     openLightbox(index) {
@@ -474,6 +506,40 @@ export default {
         right: 0.5rem;
         opacity: 0.9;
       }
+    }
+  }
+}
+
+.bilderuploads-caption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  background-color: rgba(0, 0, 0, 0.55);
+  color: white;
+
+  &-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  &-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.4rem;
+    background-color: rgba(255, 255, 255, 0.15);
+    color: white;
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: background-color 0.15s;
+
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.25);
     }
   }
 }
