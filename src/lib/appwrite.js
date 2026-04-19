@@ -8,7 +8,7 @@ export const teams = new Teams(client)
 
 client.setEndpoint('https://fra.cloud.appwrite.io/v1').setProject('wswpk')
 client.setDevKey(
-  'ff9e56f3d94926205324c43388bd07d127f8115b8347e3f7c5c8d7f1e3df57477c9d6ead1b2b00e0c77f375d9ac9d0dd2f2d4dca26484e0b8299c509a316b0316171c9e4d0c2bae2b26a36da712be27ffc17f085f98ee3d9c6bebf7fa65575977ac4dbd56bfbc4a66f1d53e809aa75b98cff776d560d1ca7e79ea95bdaa06e3a',
+  '1e1a17bafa0ad89f71a895a449cfb4fde93549fca032db3ae36217da762b9794c0023447dc8aeaa63f9fb430f948a84a8ad1976479924f327bd516655ce465688bd45389b74418de9832f344c3a17adef251f1038ff303233176b3ba032efc0519dda9d6355ca0a3a6e64734a7b0ca365298151b8e5fc628ee3ec818b5c0db19',
 )
 
 export const account = new Account(client)
