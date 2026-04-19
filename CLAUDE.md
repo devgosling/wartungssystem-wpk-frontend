@@ -18,7 +18,7 @@ Vue 3 (Options API in most components) + Vite + PrimeVue (Aura theme) + Pinia + 
 
 ### Backend: Appwrite
 
-All backend access funnels through [src/lib/appwrite.js](src/lib/appwrite.js), which instantiates a single `Client` (project `wpk`, endpoint `fra.cloud.appwrite.io`) and exports `account`, `databases`, `storage`, `functions`, `teams`, and `ID`. Note: a `setDevKey(...)` is currently called at module load — treat this file as the sole place to touch Appwrite client config.
+All backend access funnels through [src/lib/appwrite.js](src/lib/appwrite.js), which instantiates a single `Client` (project `wswpk`, endpoint `fra.cloud.appwrite.io`) and exports `account`, `databases`, `storage`, `functions`, `teams`, and `ID`. Note: a `setDevKey(...)` is currently called at module load — treat this file as the sole place to touch Appwrite client config.
 
 Data model (hardcoded IDs across the codebase — searching for them is the fastest way to find call sites):
 - Database: `wartungssystem`
