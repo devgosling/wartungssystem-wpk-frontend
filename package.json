@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test:unit": "vitest",
     "format": "prettier --write src/",
-    "appwrite:deploy": "appwrite sites create-deployment --site-id=69b18c6a0035a8d333a7 --code='./' --activate --build-command='npm run build' --install-command='npm install' --output-directory='./dist'"
+    "appwrite:deploy": "vite build && appwrite sites create-deployment --site-id 69b18c6a0035a8d333a7 --code ./ --activate true"
   },
   "dependencies": {
     "@primeuix/themes": "^1.2.1",

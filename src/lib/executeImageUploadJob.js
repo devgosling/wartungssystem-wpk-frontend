@@ -14,7 +14,11 @@ function filePermissions(ownerId) {
 }
 
 export async function executeImageUploadJob(job) {
-  const { owner, filename, imageBase64 } = job
+  const { owner, folderId, filename, imageBase64 } = job
+
+  if (!folderId) {
+    throw new Error('IMAGE_UPLOAD_MISSING_FOLDER')
+  }
 
   const blob = await (await fetch('data:image/jpeg;base64,' + imageBase64)).blob()
   const file = new File([blob], filename, { type: 'image/jpeg' })
@@ -28,7 +32,7 @@ export async function executeImageUploadJob(job) {
     'wartungssystem',
     'imageupload',
     ID.unique(),
-    { owner, associatedFile: fileId },
+    { owner, folderId, associatedFile: fileId },
     perms,
   )
 }

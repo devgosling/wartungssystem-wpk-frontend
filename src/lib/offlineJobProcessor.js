@@ -7,6 +7,7 @@ import {
   executeDeleteStundenzettelJob,
 } from './executeStundenzettelSignatureJob'
 import { executeImageUploadJob, executeImageDeleteJob } from './executeImageUploadJob'
+import { executeFolderCreateJob, executeFolderDeleteJob } from './executeFolderJob'
 
 export async function processJobs() {
   const jobs = await getPendingJobs()
@@ -24,6 +25,10 @@ export async function processJobs() {
         await executeImageUploadJob(job)
       } else if (job.type === 'image-delete') {
         await executeImageDeleteJob(job)
+      } else if (job.type === 'folder-create') {
+        await executeFolderCreateJob(job)
+      } else if (job.type === 'folder-delete') {
+        await executeFolderDeleteJob(job)
       } else {
         await executeJob(job)
       }
