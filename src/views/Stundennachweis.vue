@@ -11,6 +11,43 @@
         />
       </div>
     </div>
+    <Card v-if="visibleDrafts.length > 0" class="stundennachweise-drafts">
+      <template #title>Zwischengespeicherte Stundennachweise</template>
+      <template #content>
+        <div class="stundennachweise-drafts-list">
+          <div
+            v-for="draft in visibleDrafts"
+            :key="draft.id"
+            class="stundennachweise-drafts-item"
+            :class="{ 'stundennachweise-drafts-item--active': draft.id === currentDraftId }"
+          >
+            <div class="stundennachweise-drafts-item-meta">
+              <span class="stundennachweise-drafts-item-name">
+                {{ draft.inputValues.customer?.name || 'Kein Kunde ausgewählt' }}
+              </span>
+              <span class="stundennachweise-drafts-item-sub">{{ draftSubtitle(draft) }}</span>
+            </div>
+            <div class="stundennachweise-drafts-item-btns">
+              <Button
+                icon="fa-regular fa-pen"
+                label="Bearbeiten"
+                size="small"
+                severity="contrast"
+                :disabled="isSending"
+                @click="openDraft(draft)"
+              />
+              <Button
+                icon="fa-regular fa-trash"
+                size="small"
+                severity="danger"
+                v-tooltip.top="'Entwurf löschen'"
+                @click="confirmDeleteDraft($event, draft)"
+              />
+            </div>
+          </div>
+        </div>
+      </template>
+    </Card>
     <transition @before-enter="beforeEnter" @enter="enter" @after-enter="afterEnter">
       <Card v-if="tab == 1" class="stundennachweise-uppercard">
         <template #title> Stundennachweis erstellen</template>
@@ -19,11 +56,27 @@
             id="stundennachweise-uppercard-container"
             style="overflow-x: hidden; position: relative"
           >
-            <Stepper v-if="tab == 1" value="1" linear>
+            <Stepper
+              v-if="tab == 1"
+              :value="activeStep"
+              @update:value="activeStep = $event"
+              linear
+            >
               <StepItem value="1">
                 <Step>Anfangsdaten</Step>
                 <StepPanel v-slot="{ activateCallback }">
                   <div class="stundennachweise-create-panel">
+                    <div v-if="isAdmin" class="stundennachweise-create-panel-grid-inpt">
+                      <label for="stundennachweis-ersteller">Monteur (Ersteller)</label>
+                      <Select
+                        id="stundennachweis-ersteller"
+                        placeholder="Mitarbeiter auswählen"
+                        :options="creatorOptions"
+                        class="stundennachweise-create-panel-grid-slct-type"
+                        filter
+                        v-model="inputValues.employee"
+                      />
+                    </div>
                     <div class="stundennachweise-create-panel-grid-inpt">
                       <label for="stundennachweis-kunde">Kunde</label>
                       <Select
@@ -114,7 +167,7 @@
                       <MultiSelect
                         id="stundennachweis-employees"
                         placeholder="Keine weiteren Mitarbeiter ausgewählt"
-                        :options="mitarbeiter.slice().sort((a, b) => a.localeCompare(b))"
+                        :options="additionalEmployeeOptions"
                         class="stundennachweise-create-panel-grid-slct-type"
                         filter
                         multiple
@@ -177,16 +230,25 @@
                         v-model="inputValues.auftragsNr"
                       />
                     </div>
-                    <Button
-                      class="stundennachweise-create-panel-btn"
-                      severity="contrast"
-                      label="Weiter"
-                      icon="fa-regular fa-arrow-right"
-                      size="small"
-                      iconPos="right"
-                      :disabled="!inputValues.customer"
-                      @click="proceedToStep2(activateCallback)"
-                    />
+                    <div class="stundennachweise-panel-actions">
+                      <Button
+                        severity="secondary"
+                        label="Zwischenspeichern"
+                        icon="fa-regular fa-floppy-disk"
+                        size="small"
+                        :loading="savingDraft"
+                        @click="saveDraft()"
+                      />
+                      <Button
+                        severity="contrast"
+                        label="Weiter"
+                        icon="fa-regular fa-arrow-right"
+                        size="small"
+                        iconPos="right"
+                        :disabled="!inputValues.customer || !inputValues.employee"
+                        @click="proceedToStep2(activateCallback)"
+                      />
+                    </div>
                   </div>
                 </StepPanel>
               </StepItem>
@@ -220,7 +282,7 @@
                           <span>KM</span>
                           <span>Total Std.</span>
                         </div>
-                        <div v-for="row in 8" :key="row" class="stundenfiller-table-row">
+                        <div v-for="row in rowCount" :key="row" class="stundenfiller-table-row">
                           <DatePicker
                             v-model="stundenData.rows[row - 1].datum"
                             dateFormat="dd.mm.yy"
@@ -404,21 +466,30 @@
                         />
                       </div>
                     </div>
-                    <Button
-                      class="stundennachweise-fill-panel-btn"
-                      severity="contrast"
-                      label="Weiter"
-                      icon="fa-regular fa-arrow-right"
-                      size="small"
-                      iconPos="right"
-                      :disabled="!inputValues.employee"
-                      @click="
-                        function () {
-                          activateCallback('3')
-                          activateSignPad()
-                        }
-                      "
-                    />
+                    <div class="stundennachweise-panel-actions">
+                      <Button
+                        severity="secondary"
+                        label="Zwischenspeichern"
+                        icon="fa-regular fa-floppy-disk"
+                        size="small"
+                        :loading="savingDraft"
+                        @click="saveDraft()"
+                      />
+                      <Button
+                        severity="contrast"
+                        label="Weiter"
+                        icon="fa-regular fa-arrow-right"
+                        size="small"
+                        iconPos="right"
+                        :disabled="!inputValues.employee"
+                        @click="
+                          function () {
+                            activateCallback('3')
+                            activateSignPad()
+                          }
+                        "
+                      />
+                    </div>
                   </div>
                 </StepPanel>
               </StepItem>
@@ -710,17 +781,6 @@
               <Tag v-else severity="warn" icon="fa-regular fa-xmark" value="Nein" />
             </template>
           </Column>
-          <Column field="ueberprueft" header="Überprüft">
-            <template #body="slotProps">
-              <Tag
-                v-if="slotProps.data.ueberprueft"
-                severity="success"
-                icon="fa-regular fa-check"
-                value="Überprüft"
-              />
-              <Tag v-else severity="secondary" icon="fa-regular fa-clock" value="Ausstehend" />
-            </template>
-          </Column>
           <Column field="actions" header="Aktionen" frozen alignFrozen="right">
             <template #body="slotProps">
               <div style="display: flex; gap: 0.2rem">
@@ -734,15 +794,6 @@
                   :loading="signingAsCustomer == slotProps.index"
                 ></Button>
                 <Button
-                  v-if="!slotProps.data.ueberprueft && isAdmin"
-                  icon="fa-regular fa-clipboard-check"
-                  severity="secondary"
-                  v-tooltip.top="'Als überprüft markieren'"
-                  @click="openControlSignDialog(slotProps.data, slotProps.index)"
-                  size="small"
-                  :loading="markingAsVerified == slotProps.index"
-                ></Button>
-                <Button
                   icon="fa-regular fa-eye"
                   severity="info"
                   @click="viewBericht(slotProps.data, slotProps.index)"
@@ -754,6 +805,14 @@
                   :loading="downloadingBericht == slotProps.index"
                   @click="downloadBericht(slotProps.data, slotProps.index)"
                   severity="contrast"
+                  size="small"
+                ></Button>
+                <Button
+                  icon="fa-regular fa-paper-plane"
+                  severity="success"
+                  v-tooltip.top="'An Kunden senden'"
+                  :loading="sendingBericht == slotProps.index"
+                  @click="sendBericht($event, slotProps.data, slotProps.index)"
                   size="small"
                 ></Button>
                 <Button
@@ -830,45 +889,6 @@
       </div>
     </div>
   </Dialog>
-
-  <!-- Control Signature Dialog -->
-  <Dialog
-    v-model:visible="controlSignDialog.open"
-    header="Kontrolle unterschreiben"
-    :style="{ width: 'min(90vw, 600px)' }"
-    modal
-  >
-    <div class="control-sign-dialog">
-      <p>Bitte unterschreiben Sie hier, um den Stundennachweis als überprüft zu markieren:</p>
-      <canvas id="controlSignpadDialog" class="stundennachweise-sign-panel-signpad"></canvas>
-      <div style="display: flex; gap: 0.5rem; margin-top: 1rem; justify-content: flex-end">
-        <Button
-          label="Löschen"
-          severity="danger"
-          icon="fa-regular fa-trash"
-          size="small"
-          :disabled="isControlSignDialogEmpty"
-          @click="clearControlSignDialog"
-        />
-        <Button
-          label="Abbrechen"
-          severity="secondary"
-          icon="fa-regular fa-xmark"
-          size="small"
-          @click="closeControlSignDialog"
-        />
-        <Button
-          label="Überprüft & Unterschrieben"
-          severity="success"
-          icon="fa-regular fa-check"
-          size="small"
-          :disabled="isControlSignDialogEmpty"
-          :loading="markingAsVerified !== null"
-          @click="saveControlSignature"
-        />
-      </div>
-    </div>
-  </Dialog>
 </template>
 <script>
 import { account, databases, functions, storage } from '@/lib/appwrite'
@@ -898,15 +918,10 @@ import StepItem from 'primevue/stepitem'
 import Stepper from 'primevue/stepper'
 import Step from 'primevue/step'
 import SignaturePad from 'signature_pad'
-import {
-  fillStundenzettelPDF,
-  getAmountOfPagesInPDF,
-  addCustomerSignatureToPDF,
-  addControlSignatureToPDF,
-} from '@/lib/pdf-lib'
+import { fillStundenzettelPDF, getAmountOfPagesInPDF, addCustomerSignatureToPDF } from '@/lib/pdf-lib'
 import * as pdfjsLib from 'pdfjs-dist'
 import { useInputStore } from '@/stores/inputStore'
-import { AppwriteException, ExecutionMethod, Query } from 'appwrite'
+import { AppwriteException, Query } from 'appwrite'
 import { FilterMatchMode } from '@primevue/core'
 import CreateCustomerDialog from '@/components/CreateCustomerDialog.vue'
 import ViewCustomerDialog from '@/components/ViewCustomerDialog.vue'
@@ -914,6 +929,60 @@ import { enqueueJob } from '@/lib/offlineQueue'
 import { executeStundenzettelJob } from '@/lib/executeStundenzettelJob'
 import { toRaw } from 'vue'
 import { canCreateReport } from '@/lib/cacheUtils'
+import {
+  ADMIN_ACCOUNT_NAME,
+  fetchUsers,
+  getCurrentUserContext,
+  selectableEmployees,
+} from '@/lib/employees'
+import { getAllDrafts, putDraft, deleteDraft } from '@/lib/stundenzettelDrafts'
+
+// The PDF template has exactly this many table rows.
+const ROW_COUNT = 7
+
+function emptyInputValues() {
+  return {
+    customer: null,
+    objekt: '',
+    bestellNr: '',
+    auftragsNr: '',
+  }
+}
+
+function emptyStundenData() {
+  return {
+    rows: Array.from({ length: ROW_COUNT }, () => ({
+      datum: null,
+      arbeitszeit1: '',
+      arbeitszeit2: '',
+      pause: '',
+      pauseStd: '',
+      ueberstunden1: '',
+      ueberstunden2: '',
+      ueberstundenStd: '',
+      anfahrt1: '',
+      anfahrt2: '',
+      anfahrtStd: '',
+      abfahrt1: '',
+      abfahrt2: '',
+      abfahrtStd: '',
+      km: '',
+      totalStd: '',
+    })),
+    employees: [],
+    totalPause: '',
+    totalUeberstunden: '',
+    totalAnfahrt: '',
+    totalAbfahrt: '',
+    totalKm: '',
+    totalStd: '',
+    ausgefuehrteArbeiten: '',
+    notdienst: false,
+    kundendienst: false,
+    wartung: false,
+    material: '',
+  }
+}
 
 export default {
   components: {
@@ -960,49 +1029,22 @@ export default {
       pdfsCached: true,
       checkingPDFCache: false,
 
-      inputValues: {
-        customer: null,
-        objekt: '',
-        bestellNr: '',
-        auftragsNr: '',
-      },
-      stundenData: {
-        rows: Array.from({ length: 8 }, () => ({
-          datum: null,
-          arbeitszeit1: '',
-          arbeitszeit2: '',
-          pause: '',
-          pauseStd: '',
-          ueberstunden1: '',
-          ueberstunden2: '',
-          ueberstundenStd: '',
-          anfahrt1: '',
-          anfahrt2: '',
-          anfahrtStd: '',
-          abfahrt1: '',
-          abfahrt2: '',
-          abfahrtStd: '',
-          km: '',
-          totalStd: '',
-        })),
-        employees: [],
-        totalPause: '',
-        totalUeberstunden: '',
-        totalAnfahrt: '',
-        totalAbfahrt: '',
-        totalKm: '',
-        totalStd: '',
-        ausgefuehrteArbeiten: '',
-        notdienst: false,
-        kundendienst: false,
-        wartung: false,
-        material: '',
-      },
+      rowCount: ROW_COUNT,
+      inputValues: emptyInputValues(),
+      stundenData: emptyStundenData(),
+      activeStep: '1',
+
+      drafts: [],
+      currentDraftId: null,
+      savingDraft: false,
+
       tabCooldown: -1,
       tab: 0, // DO NOT CHANGE
       tabtext: '',
 
       mitarbeiter: [],
+      users: [],
+      currentUser: null,
 
       kunden: [],
 
@@ -1033,6 +1075,7 @@ export default {
 
       deletingBericht: null,
       downloadingBericht: null,
+      sendingBericht: null,
 
       signpadResizeHandler: null,
       signpadResizeHandler2: null,
@@ -1047,16 +1090,6 @@ export default {
       isCustomerSignDialogEmpty: true,
       signingAsCustomer: null,
 
-      // Control signature dialog
-      controlSignDialog: {
-        open: false,
-        data: null,
-        index: null,
-        signpad: null,
-      },
-      isControlSignDialogEmpty: true,
-      markingAsVerified: null,
-
       isAdmin: false,
     }
   },
@@ -1070,14 +1103,36 @@ export default {
     }
   },
 
+  computed: {
+    // Admins create timesheets on behalf of an employee picked from this list.
+    creatorOptions() {
+      const names = selectableEmployees(this.users).map((u) => u.name)
+      const own = this.currentUser?.name
+      if (own && own !== ADMIN_ACCOUNT_NAME && !names.includes(own)) names.push(own)
+      return names
+    },
+    additionalEmployeeOptions() {
+      return this.mitarbeiter
+        .filter((name) => name !== ADMIN_ACCOUNT_NAME && name !== this.inputValues.employee)
+        .sort((a, b) => a.localeCompare(b))
+    },
+    visibleDrafts() {
+      const userId = this.currentUser?.$id
+      return this.drafts.filter((d) => this.isAdmin || !d.ownerId || d.ownerId === userId)
+    },
+  },
+
   async mounted() {
-    this.fetchStundenzettel()
     this.fetchCustomers()
     this.fetchEmployees()
+    this.loadDrafts()
 
-    const currentUser = await account.get()
-    this.inputValues.employee = currentUser.name
-    this.isAdmin = currentUser.name === 'Administrator' || currentUser.name === 'Kevin Kromholz'
+    const { user, isAdmin } = await getCurrentUserContext()
+    this.currentUser = user
+    this.isAdmin = isAdmin || user?.name === 'Kevin Kromholz'
+    this.inputValues.employee = this.defaultEmployee()
+
+    this.fetchStundenzettel()
 
     // Check if PDFs are cached
     this.checkPDFCache()
@@ -1095,6 +1150,13 @@ export default {
         this.recalculateTotals()
       },
       deep: true,
+    },
+    'inputValues.employee'(newVal) {
+      // The creator can't also be listed as an additional employee.
+      if (Array.isArray(this.inputValues.employees) && this.inputValues.employees.includes(newVal)) {
+        this.inputValues.employees = this.inputValues.employees.filter((n) => n !== newVal)
+      }
+      this.recalculateTotals()
     },
     isAdmin() {
       this.recalculateTotals()
@@ -1182,13 +1244,15 @@ export default {
 
     recalculateTotals() {
       // Per-person multiplier: each person on site doubles billable time.
-      // Logged-in user counts as 1 worker — unless they're an Administrator
-      // (admin only fills out timesheets on behalf of others, so only the
-      // extra employees count).
+      // The selected Monteur counts as 1 worker — unless an admin left
+      // themself as Monteur (admin only fills out timesheets on behalf of
+      // others, so only the extra employees count).
       const extraCount = Array.isArray(this.inputValues?.employees)
         ? this.inputValues.employees.length
         : 0
-      const multiplier = this.isAdmin ? extraCount : 1 + extraCount
+      const adminIsMonteur =
+        this.isAdmin && this.inputValues?.employee === this.currentUser?.name
+      const multiplier = adminIsMonteur ? extraCount : 1 + extraCount
 
       let sumWorkNet = 0
       let sumUeber = 0
@@ -1392,20 +1456,13 @@ export default {
       }
       activateCallback('2')
     },
+    defaultEmployee() {
+      const name = this.currentUser?.name
+      return !name || name === ADMIN_ACCOUNT_NAME ? null : name
+    },
     async fetchEmployees() {
-      let userList = JSON.parse(
-        (
-          await functions.createExecution(
-            '69b18cbb0036de675223',
-            '{}',
-            false,
-            '/listusers',
-            ExecutionMethod.GET,
-          )
-        ).responseBody,
-      )
-
-      this.mitarbeiter = userList.users.map((user) => user.name)
+      this.users = await fetchUsers()
+      this.mitarbeiter = this.users.map((user) => user.name)
     },
     async fetchCustomers() {
       this.kunden = []
@@ -1432,9 +1489,8 @@ export default {
     },
     async fetchStundenzettel() {
       try {
-        const currentUser = await account.get()
-        const userName = currentUser.name
-        const isAdmin = userName === 'Administrator' || userName === 'Kevin Kromholz'
+        const userName = this.currentUser?.name ?? (await account.get()).name
+        const isAdmin = this.isAdmin
 
         let page = 1
         const perPage = 25
@@ -1489,51 +1545,12 @@ export default {
       }
     },
 
-    async resetDataAndCreateNew(callback) {
-      this.inputValues = {
-        customer: null,
-        objekt: '',
-        bestellNr: '',
-        auftragsNr: '',
-      }
-
-      this.inputValues.employee = (await account.get()).name
-
-      // Reset stundenData
-      this.stundenData = {
-        rows: Array.from({ length: 8 }, () => ({
-          datum: null,
-          arbeitszeit1: '',
-          arbeitszeit2: '',
-          pause: '',
-          pauseStd: '',
-          ueberstunden1: '',
-          ueberstunden2: '',
-          ueberstundenStd: '',
-          anfahrt1: '',
-          anfahrt2: '',
-          anfahrtStd: '',
-          abfahrt1: '',
-          abfahrt2: '',
-          abfahrtStd: '',
-          km: '',
-          totalStd: '',
-        })),
-        totalPause: '',
-        totalUeberstunden: '',
-        totalAnfahrt: '',
-        totalAbfahrt: '',
-        totalKm: '',
-        totalStd: '',
-        ausgefuehrteArbeiten: '',
-        employees: [],
-        notdienst: false,
-        kundendienst: false,
-        wartung: false,
-        material: '',
-      }
-
-      await callback('1')
+    resetForm() {
+      this.inputValues = emptyInputValues()
+      this.inputValues.employee = this.defaultEmployee()
+      this.stundenData = emptyStundenData()
+      this.currentDraftId = null
+      this.activeStep = '1'
 
       useInputStore().resetInputData()
 
@@ -1552,6 +1569,199 @@ export default {
       this.pdfImg = null
       this.isSending = false
       this.isSent = false
+    },
+    async resetDataAndCreateNew(callback) {
+      await callback('1')
+      this.resetForm()
+    },
+
+    // #region Drafts (device-local, see stundenzettelDrafts.js)
+    async loadDrafts() {
+      try {
+        this.drafts = await getAllDrafts()
+      } catch (err) {
+        console.error('Fehler beim Laden der Entwürfe:', err)
+      }
+    },
+    draftSubtitle(draft) {
+      const parts = []
+      if (draft.inputValues.employee) parts.push(draft.inputValues.employee)
+      if (draft.inputValues.objekt) parts.push(draft.inputValues.objekt)
+      const dates = (draft.stundenData.rows || [])
+        .map((row) => row.datum)
+        .filter(Boolean)
+        .map((d) => new Date(d).toLocaleDateString('de-DE'))
+      if (dates.length > 0) {
+        parts.push(dates.length > 1 ? `${dates[0]} – ${dates[dates.length - 1]}` : dates[0])
+      }
+      parts.push(
+        'Zuletzt gespeichert: ' +
+          new Date(draft.updatedAt).toLocaleString('de-DE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          }),
+      )
+      return parts.join(' · ')
+    },
+    async saveDraft() {
+      this.savingDraft = true
+      try {
+        const now = Date.now()
+        const id = this.currentDraftId ?? crypto.randomUUID()
+        const existing = this.drafts.find((d) => d.id === id)
+        // JSON round trip strips Vue proxies so IndexedDB can clone the payload.
+        await putDraft(
+          JSON.parse(
+            JSON.stringify({
+              id,
+              ownerId: existing?.ownerId ?? this.currentUser?.$id ?? null,
+              createdAt: existing?.createdAt ?? now,
+              updatedAt: now,
+              inputValues: this.inputValues,
+              stundenData: this.stundenData,
+            }),
+          ),
+        )
+        await this.loadDrafts()
+
+        this.tab = 0
+        this.resetForm()
+
+        this.$toast.add({
+          severity: 'success',
+          summary: 'Zwischengespeichert',
+          detail:
+            'Der Stundennachweis wurde auf diesem Gerät zwischengespeichert und kann später weiterbearbeitet werden.',
+          life: 5000,
+        })
+      } catch (err) {
+        console.error('Fehler beim Zwischenspeichern:', err)
+        this.$toast.add({
+          severity: 'error',
+          summary: 'Fehler',
+          detail: 'Der Stundennachweis konnte nicht zwischengespeichert werden.',
+          life: 5000,
+        })
+      }
+      this.savingDraft = false
+    },
+    openDraft(draft) {
+      this.resetForm()
+
+      const customer = draft.inputValues.customer
+      this.inputValues = {
+        ...emptyInputValues(),
+        ...draft.inputValues,
+        customer: this.kunden.find((k) => k.$id === customer?.$id) ?? customer ?? null,
+      }
+      if (!this.inputValues.employee) this.inputValues.employee = this.defaultEmployee()
+
+      const empty = emptyStundenData()
+      this.stundenData = {
+        ...empty,
+        ...draft.stundenData,
+        rows: empty.rows.map((row, i) => {
+          const saved = draft.stundenData.rows?.[i] ?? {}
+          return { ...row, ...saved, datum: saved.datum ? new Date(saved.datum) : null }
+        }),
+      }
+
+      this.currentDraftId = draft.id
+      this.tab = 1
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    },
+    confirmDeleteDraft(event, draft) {
+      this.$confirm.require({
+        target: event.currentTarget,
+        message: 'Bist du dir sicher, dass du diesen Entwurf löschen willst?',
+        icon: 'fa-regular fa-exclamation-triangle',
+        rejectProps: {
+          label: 'Abbrechen',
+          severity: 'secondary',
+          outlined: true,
+        },
+        acceptProps: {
+          label: 'Löschen',
+          severity: 'danger',
+        },
+        accept: async () => {
+          await deleteDraft(draft.id)
+          if (this.currentDraftId === draft.id) this.currentDraftId = null
+          await this.loadDrafts()
+        },
+      })
+    },
+    // #endregion
+
+    sendBericht(event, data, berichtIndex) {
+      const recipients = Array.isArray(data.kunde?.emailArray) ? data.kunde.emailArray : []
+      if (recipients.length === 0) {
+        this.$toast.add({
+          severity: 'warn',
+          summary: 'Keine E-Mail-Adresse',
+          detail: 'Für diesen Kunden ist keine E-Mail-Adresse hinterlegt.',
+          life: 5000,
+        })
+        return
+      }
+
+      this.$confirm.require({
+        target: event.currentTarget,
+        message: `Stundennachweis an ${recipients.join(', ')} senden?`,
+        icon: 'fa-regular fa-paper-plane',
+        rejectProps: {
+          label: 'Abbrechen',
+          severity: 'secondary',
+          outlined: true,
+        },
+        acceptProps: {
+          label: 'Senden',
+          severity: 'success',
+        },
+        accept: async () => {
+          this.sendingBericht = berichtIndex
+          try {
+            const fileData = await storage.getFile('storage', data.stundenzettelId)
+            const res = await functions.createExecution(
+              '69b18cbb0036de675223',
+              JSON.stringify({
+                emailArray: recipients,
+                subject: 'Stundennachweis - ' + data.kunde.name,
+                type: 2,
+                fileID: data.stundenzettelId,
+                fileName: fileData.name,
+                monteur: data.mitarbeiter,
+              }),
+              false,
+              '/sendbericht',
+            )
+            if (res.responseStatusCode !== 200) {
+              throw new Error(res.responseBody || 'Status ' + res.responseStatusCode)
+            }
+
+            this.$toast.add({
+              severity: 'success',
+              summary: 'Stundennachweis versendet',
+              detail: 'Der Stundennachweis wurde an ' + recipients.join(', ') + ' gesendet.',
+              life: 5000,
+            })
+          } catch (err) {
+            console.error('Fehler beim Versenden:', err)
+            this.$toast.add({
+              severity: navigator.onLine ? 'error' : 'warn',
+              summary: navigator.onLine ? 'Fehler beim Versenden' : 'Offline',
+              detail: navigator.onLine
+                ? 'Der Stundennachweis konnte nicht versendet werden.'
+                : 'Der Stundennachweis kann nicht versendet werden, da keine Internetverbindung besteht.',
+              life: 5000,
+            })
+          }
+          this.sendingBericht = null
+        },
+      })
     },
     async viewBericht(data, berichtIndex) {
       this.viewingBericht.loading = berichtIndex
@@ -1908,162 +2118,6 @@ export default {
       this.signingAsCustomer = null
     },
 
-    // Control signature dialog methods
-    openControlSignDialog(data, index) {
-      this.controlSignDialog.data = data
-      this.controlSignDialog.index = index
-      this.controlSignDialog.open = true
-      this.isControlSignDialogEmpty = true
-
-      // Use setTimeout to ensure dialog is fully rendered before initializing signpad
-      setTimeout(() => {
-        this.initControlSignpad()
-      }, 100)
-    },
-    initControlSignpad() {
-      if (this.controlSignDialog.signpad) return
-
-      let canvas = document.getElementById('controlSignpadDialog')
-      if (!canvas) return
-
-      // Function to resize canvas properly
-      const resizeCanvas = () => {
-        const ratio = Math.max(window.devicePixelRatio || 1, 1)
-
-        // Use clientWidth/clientHeight to exclude border from size calculation
-        const width = canvas.clientWidth
-        const height = canvas.clientHeight
-
-        // Set canvas internal size (accounting for device pixel ratio)
-        canvas.width = width * ratio
-        canvas.height = height * ratio
-
-        // Scale context to match device pixel ratio
-        const ctx = canvas.getContext('2d')
-        ctx.scale(ratio, ratio)
-      }
-
-      // Initial resize
-      resizeCanvas()
-
-      // Initialize SignaturePad
-      this.controlSignDialog.signpad = new SignaturePad(canvas, {
-        backgroundColor: 'rgb(255, 255, 255)',
-      })
-
-      // Handle signature events
-      this.controlSignDialog.signpad.addEventListener('beginStroke', () => {
-        this.isControlSignDialogEmpty = false
-      })
-
-      // Handle resize
-      const handleResize = () => {
-        if (!this.controlSignDialog.signpad) return
-        const data = this.controlSignDialog.signpad.toData()
-        resizeCanvas()
-        this.controlSignDialog.signpad.clear()
-        if (data && data.length > 0) {
-          this.controlSignDialog.signpad.fromData(data)
-        }
-      }
-
-      this.$nextTick(() => {
-        handleResize()
-      })
-    },
-    clearControlSignDialog() {
-      if (this.controlSignDialog.signpad) {
-        this.controlSignDialog.signpad.clear()
-        this.isControlSignDialogEmpty = true
-      }
-    },
-    closeControlSignDialog() {
-      this.controlSignDialog.open = false
-      this.controlSignDialog.data = null
-      this.controlSignDialog.index = null
-      if (this.controlSignDialog.signpad) {
-        this.controlSignDialog.signpad.clear()
-        this.controlSignDialog.signpad = null
-      }
-      this.isControlSignDialogEmpty = true
-    },
-    async saveControlSignature() {
-      if (!this.controlSignDialog.signpad || this.isControlSignDialogEmpty) return
-
-      // Check if offline - signature requires downloading PDF from server
-      if (!navigator.onLine) {
-        this.$toast.add({
-          severity: 'warn',
-          summary: 'Offline',
-          detail:
-            'Die Überprüfung kann nicht gespeichert werden, da keine Internetverbindung besteht.',
-          life: 5000,
-        })
-        return
-      }
-
-      this.markingAsVerified = this.controlSignDialog.index
-      const data = this.controlSignDialog.data
-
-      try {
-        // Get the signature as base64
-        const signatureBase64 = this.controlSignDialog.signpad.toDataURL()
-
-        // Download the existing PDF
-        const fileDownload = await storage.getFileDownload(
-          'storage',
-          data.stundenzettelId,
-        )
-        const fileData = await storage.getFile('storage', data.stundenzettelId)
-        const jwtObject = await account.createJWT()
-        const fileResponse = await fetch(
-          `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
-          {
-            headers: { 'x-appwrite-jwt': jwtObject.jwt },
-            cache: 'no-store',
-          },
-        )
-        const blob = await fileResponse.blob()
-        const pdfBuffer = await blob.arrayBuffer()
-
-        // Add control signature to PDF
-        const [newPdfBytes] = await addControlSignatureToPDF(pdfBuffer, signatureBase64)
-
-        // Delete old file and upload new one with same ID and same name
-        await storage.deleteFile('storage', data.stundenzettelId)
-
-        const newFile = new File([newPdfBytes], fileData.name, {
-          type: 'application/pdf',
-        })
-        await storage.createFile('storage', data.stundenzettelId, newFile)
-
-        // Update the document in the database
-        await databases.updateDocument('wartungssystem', 'stundenzettel', data.$id, {
-          ueberprueft: true,
-        })
-
-        this.$toast.add({
-          severity: 'success',
-          summary: 'Als überprüft markiert',
-          detail:
-            'Der Stundennachweis wurde erfolgreich als überprüft markiert und unterschrieben.',
-          life: 5000,
-        })
-
-        this.closeControlSignDialog()
-        this.fetchStundenzettel()
-      } catch (err) {
-        this.$toast.add({
-          severity: 'error',
-          summary: 'Fehler',
-          detail: 'Der Stundennachweis konnte nicht als überprüft markiert werden: ' + err.message,
-          life: 5000,
-        })
-      }
-
-      this.markingAsVerified = null
-    },
-
     activateSignPad() {
       // Tear down any prior instance — PrimeVue Stepper remounts the panel
       // on back-navigation, so the canvas this.signpad was bound to may be dead.
@@ -2330,6 +2384,12 @@ export default {
             'Der Stundennachweis wurde zum späteren Senden in die Warteschlange gestellt, da keine Internetverbindung besteht.',
           life: 15000,
         })
+      }
+
+      if (this.currentDraftId) {
+        await deleteDraft(this.currentDraftId)
+        this.currentDraftId = null
+        await this.loadDrafts()
       }
 
       this.isSending = false
@@ -2985,8 +3045,7 @@ export default {
 }
 
 /* Dialog signpad specific styles - ensure no offset */
-.customer-sign-dialog,
-.control-sign-dialog {
+.customer-sign-dialog {
   .stundennachweise-sign-panel-signpad {
     max-width: 100%;
     box-sizing: border-box;
@@ -3016,5 +3075,62 @@ export default {
   background: var(--p-surface-100, #f1f5f9);
   color: var(--p-text-color-secondary, #64748b);
   cursor: default;
+}
+
+.stundennachweise-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+
+  @media (max-width: 768px) {
+    .p-button {
+      flex: 1;
+    }
+  }
+}
+
+.stundennachweise-drafts {
+  &-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  &-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--p-surface-200);
+    border-radius: 0.5rem;
+
+    &--active {
+      border-color: var(--p-primary-400);
+      background: var(--p-primary-50);
+    }
+
+    &-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.15rem;
+      min-width: 0;
+    }
+
+    &-name {
+      font-weight: 600;
+    }
+
+    &-sub {
+      color: var(--p-surface-500);
+      font-size: 0.875rem;
+    }
+
+    &-btns {
+      display: flex;
+      gap: 0.3rem;
+    }
+  }
 }
 </style>

@@ -58,6 +58,7 @@
           <Column field="" header="Aktionen">
             <template #body="slotProps">
               <Button
+                v-if="slotProps.data.name !== 'Administrator'"
                 icon="fa-regular fa-trash"
                 :loading="deletingEmployee == slotProps.index"
                 @click="deleteEmployee($event, slotProps.data, slotProps.index)"

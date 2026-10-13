@@ -110,7 +110,17 @@
                         </div>
                         <div class="wartungsberichte-create-panel-grid-inpt">
                           <label for="wartungsbericht-slct">Bearbeitender Mitarbeiter</label>
+                          <Select
+                            v-if="isAdmin"
+                            id="wartungsbericht-slct"
+                            placeholder="Mitarbeiter auswählen"
+                            :options="creatorOptions"
+                            class="wartungsberichte-create-panel-grid-slct-type"
+                            filter
+                            v-model="inputValues.employee"
+                          />
                           <InputText
+                            v-else
                             id="wartungsbericht-slct"
                             disabled
                             :value="inputValues.employee"
@@ -744,6 +754,12 @@ import { enqueueJob } from '@/lib/offlineQueue'
 import { executeJob } from '@/lib/executeJob'
 import { toRaw } from 'vue'
 import { canCreateReport } from '@/lib/cacheUtils'
+import {
+  ADMIN_ACCOUNT_NAME,
+  fetchUsers,
+  getCurrentUserContext,
+  selectableEmployees,
+} from '@/lib/employees'
 
 export default {
   components: {
@@ -860,6 +876,8 @@ export default {
         'Mark Rene Frank',
       ],*/
       mitarbeiter: [],
+      currentUser: null,
+      isAdmin: false,
 
       kunden: [],
       /**
@@ -915,6 +933,16 @@ export default {
     }
   },
 
+  computed: {
+    // Admins create reports on behalf of an employee picked from this list.
+    creatorOptions() {
+      const names = selectableEmployees(this.mitarbeiter).map((u) => u.name)
+      const own = this.currentUser?.name
+      if (own && own !== ADMIN_ACCOUNT_NAME && !names.includes(own)) names.push(own)
+      return names
+    },
+  },
+
   watch: {
     inputValues: {
       handler(newVal) {
@@ -938,7 +966,10 @@ export default {
     this.fetchEmployees()
     this.fetchCustomers()
 
-    this.inputValues.employee = (await account.get()).name
+    const { user, isAdmin } = await getCurrentUserContext()
+    this.currentUser = user
+    this.isAdmin = isAdmin
+    this.inputValues.employee = this.defaultEmployee()
 
     // Check if PDFs are cached
     this.checkPDFCache()
@@ -1180,16 +1211,12 @@ export default {
     },
     // #endregion
 
+    defaultEmployee() {
+      const name = this.currentUser?.name
+      return !name || name === ADMIN_ACCOUNT_NAME ? '' : name
+    },
     async fetchEmployees() {
-      const mitarbeiterList = await databases.listDocuments(
-        'wartungssystem',
-        'mitarbeiter',
-        [Query.orderAsc('$sequence')],
-      )
-
-      mitarbeiterList.documents.forEach((doc) => {
-        this.mitarbeiter.push(doc.name)
-      })
+      this.mitarbeiter = await fetchUsers()
     },
     async fetchCustomers() {
       this.kunden = []
@@ -1254,7 +1281,7 @@ export default {
         customer: null,
       }
 
-      this.inputValues.employee = (await account.get()).name
+      this.inputValues.employee = this.defaultEmployee()
 
       await callback('1')
 

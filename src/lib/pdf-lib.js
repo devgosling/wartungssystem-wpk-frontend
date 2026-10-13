@@ -692,10 +692,10 @@ export const fillStundenzettelPDF = async (
       .getTextField(fieldDataStundenzettel.textfields.totalAnfahrt)
       .setText(stundenData.totalAnfahrt.toString())
   }
-  if (stundenData.totalAbfahrt && fieldDataStundenzettel.textfields.totalAbfahrt) {
+  if (stundenData.totalKm && fieldDataStundenzettel.textfields.totalKm) {
     form
-      .getTextField(fieldDataStundenzettel.textfields.totalAbfahrt)
-      .setText(stundenData.totalAbfahrt.toString())
+      .getTextField(fieldDataStundenzettel.textfields.totalKm)
+      .setText(stundenData.totalKm.toString())
   }
   if (stundenData.totalStd && fieldDataStundenzettel.textfields.totalStd) {
     form
@@ -781,35 +781,6 @@ export const addCustomerSignatureToPDF = async (pdfBytes, signatureBase64) => {
   // Customer signature position (x: 400, y: 41) - same as in fillStundenzettelPDF
   firstPage.drawImage(signatureImage, {
     x: 455,
-    y: 41,
-    width: pngDims.width,
-    height: pngDims.height,
-  })
-
-  const newPdfBytes = await pdfDoc.save()
-  const newPdfBase64 = await pdfDoc.saveAsBase64()
-
-  return [newPdfBytes, newPdfBase64]
-}
-
-/**
- * Add a control/verification signature to an existing Stundenzettel PDF
- * @param {ArrayBuffer} pdfBytes - The existing PDF bytes
- * @param {string} signatureBase64 - The signature as base64 PNG
- * @returns {Promise<[Uint8Array, string]>} - [pdfBytes, pdfBase64]
- */
-export const addControlSignatureToPDF = async (pdfBytes, signatureBase64) => {
-  const pdfDoc = await PDFDocument.load(pdfBytes)
-  const signatureImage = await pdfDoc.embedPng(signatureBase64)
-
-  const pages = pdfDoc.getPages()
-  const firstPage = pages[0]
-  const scaleToWidth = 110.4
-  const pngDims = signatureImage.scale(scaleToWidth / signatureImage.width)
-
-  // Control signature position (x: 250, y: 41) - between monteur and customer signatures
-  firstPage.drawImage(signatureImage, {
-    x: 270,
     y: 41,
     width: pngDims.width,
     height: pngDims.height,

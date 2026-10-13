@@ -21,14 +21,15 @@
         </template>
       </Card>
     </div>
-    <Card class="dashboard-chart">
+    <Card class="dashboard-chart" v-for="chart in charts" :key="chart.table">
       <template #title>
         <div class="dashboard-chart-title">
-          <span>Wartungsberichte</span>
+          <span>{{ chart.title }}</span>
           <SelectButton
             v-model="rangeDays"
             optionLabel="name"
             optionValue="value"
+            :allowEmpty="false"
             :options="[
               { name: '7 Tage', value: 7 },
               { name: '30 Tage', value: 30 },
@@ -41,7 +42,7 @@
         <Chart
           type="line"
           class="dashboard-chart-chart"
-          :data="chartDataObj"
+          :data="chart.data"
           :options="chartOptions()"
           style="height: 20rem; width: 100%"
         />
@@ -68,12 +69,29 @@ export default {
   data() {
     return {
       rangeDays: 7,
-      files: [],
-      chartDataObj: null,
+      charts: [
+        {
+          title: 'Wartungsberichte',
+          table: 'wartungsbericht',
+          label: 'Wartungsberichte erstellt',
+          color: '#42A5F5',
+          files: [],
+          data: null,
+        },
+        {
+          title: 'Stundennachweise',
+          table: 'stundenzettel',
+          label: 'Stundennachweise erstellt',
+          color: '#34D399',
+          files: [],
+          data: null,
+        },
+      ],
 
       router: router,
       values: {
         wartungsberichte: { val: 0 },
+        stundennachweise: { val: 0 },
         mitarbeiter: { val: 0 },
         customers: { val: 0 },
       },
@@ -85,6 +103,14 @@ export default {
           value: 'wartungsberichte',
           table: 'wartungsbericht',
           redirectTo: '/wartungsberichte',
+        },
+        {
+          label: 'Stundennachweise',
+          icon: 'fa-regular fa-clock',
+          color: 'rgb(52, 211, 153)',
+          value: 'stundennachweise',
+          table: 'stundenzettel',
+          redirectTo: '/stundennachweis',
         },
         {
           label: 'Mitarbeiter',
@@ -107,13 +133,13 @@ export default {
   },
 
   watch: {
-    rangeDays(newVal) {
-      this.updateChartData()
+    rangeDays() {
+      this.charts.forEach((chart) => this.updateChartData(chart))
     },
   },
 
   async mounted() {
-    this.loadFiles()
+    this.charts.forEach((chart) => this.loadFiles(chart))
     const counts = await Promise.all(
       this.dashboardItems.map((item) => this.getEntryCount(item.table)),
     )
@@ -129,36 +155,37 @@ export default {
   },
 
   methods: {
-    async loadFiles() {
+    async loadFiles(chart) {
       let page = 1
       const perPage = 25
       let fetchedFiles = []
-      do {
-        const response = await databases.listDocuments(
-          'wartungssystem',
-          'wartungsbericht',
-          [Query.limit(perPage), Query.offset((page - 1) * perPage)],
-        )
-        fetchedFiles = response.documents
-        this.files.push(...fetchedFiles)
-        page++
-      } while (fetchedFiles.length === perPage)
+      try {
+        do {
+          const response = await databases.listDocuments('wartungssystem', chart.table, [
+            Query.limit(perPage),
+            Query.offset((page - 1) * perPage),
+          ])
+          fetchedFiles = response.documents
+          chart.files.push(...fetchedFiles)
+          page++
+        } while (fetchedFiles.length === perPage)
+      } catch (err) {
+        console.error('Fehler beim Laden von ' + chart.table, err)
+      }
 
-      this.files = this.files.sort((a, b) => (a.$createdAt < b.$createdAt ? 1 : -1))
-
-      this.updateChartData()
+      this.updateChartData(chart)
     },
 
-    updateChartData() {
-      const counts = this.getCounts(this.files, this.rangeDays)
-      this.chartDataObj = {
+    updateChartData(chart) {
+      const counts = this.getCounts(chart.files, this.rangeDays)
+      chart.data = {
         labels: counts.map((c) => c.date),
         datasets: [
           {
-            label: 'Wartungsberichte erstellt',
-            data: counts.map((c) => c.count), // remove *2 unless needed
+            label: chart.label,
+            data: counts.map((c) => c.count),
             fill: true,
-            borderColor: '#42A5F5',
+            borderColor: chart.color,
             tension: 0.4,
           },
         ],

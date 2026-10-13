@@ -38,12 +38,22 @@
           :disabled="!currentUserId"
           @click="openCreateDialog"
         />
+        <Select
+          v-if="isAdmin && currentLevel >= 3"
+          v-model="selectedOwnerId"
+          :options="creatorOptions"
+          optionLabel="name"
+          optionValue="$id"
+          placeholder="Ersteller auswählen"
+          filter
+          class="bilderuploads-owner-select"
+        />
         <Button
           v-if="currentLevel >= 3"
           label="Foto aufnehmen"
           icon="fa-regular fa-camera"
           severity="secondary"
-          :disabled="!currentUserId"
+          :disabled="!uploadOwnerId || uploadProgress !== null"
           @click="$refs.captureInput.click()"
         />
         <Button
@@ -51,7 +61,8 @@
           label="Hochladen"
           icon="fa-regular fa-upload"
           severity="contrast"
-          :disabled="!currentUserId"
+          :disabled="!uploadOwnerId || uploadProgress !== null"
+          :loading="uploadProgress !== null"
           @click="$refs.uploadInput.click()"
         />
       </div>
@@ -74,6 +85,11 @@
         </a>
       </template>
     </nav>
+
+    <div v-if="uploadProgress" class="bilderuploads-progress">
+      <ProgressBar :value="uploadProgressPercent" :showValue="false" />
+      <span>{{ uploadProgressLabel }}</span>
+    </div>
 
     <div v-if="loading" class="bilderuploads-loading">
       <ProgressSpinner />
@@ -190,14 +206,44 @@
             <i class="fa-regular fa-user"></i>
             <span>{{ resolveOwnerName(viewingImage.owner) }}</span>
           </div>
+          <div class="bilderuploads-dialog-header-line bilderuploads-dialog-header-sub">
+            <i class="fa-regular fa-images"></i>
+            <span>Bild {{ viewingIndex + 1 }} von {{ currentFolderImages.length }}</span>
+          </div>
         </div>
       </template>
-      <img
+      <div
         v-if="viewingImage"
-        :src="fullUrl(viewingImage)"
-        alt=""
-        class="bilderuploads-dialog-img"
-      />
+        class="bilderuploads-dialog-viewer"
+        @touchstart.passive="onSwipeStart"
+        @touchend.passive="onSwipeEnd"
+      >
+        <Button
+          v-if="hasPrevImage"
+          icon="fa-regular fa-chevron-left"
+          severity="secondary"
+          rounded
+          class="bilderuploads-dialog-viewer-nav bilderuploads-dialog-viewer-nav--prev"
+          @click="showPrevImage"
+          aria-label="Vorheriges Bild"
+        />
+        <img
+          :key="viewingImage.$id"
+          :src="fullUrl(viewingImage)"
+          alt=""
+          draggable="false"
+          class="bilderuploads-dialog-img"
+        />
+        <Button
+          v-if="hasNextImage"
+          icon="fa-regular fa-chevron-right"
+          severity="secondary"
+          rounded
+          class="bilderuploads-dialog-viewer-nav bilderuploads-dialog-viewer-nav--next"
+          @click="showNextImage"
+          aria-label="Nächstes Bild"
+        />
+      </div>
       <template #footer>
         <div v-if="viewingImage" class="bilderuploads-dialog-footer">
           <Button
@@ -303,9 +349,9 @@
 </template>
 
 <script>
-import { Button, Card, Dialog, InputText, ProgressSpinner, Select } from 'primevue'
-import { account, databases, functions, storage, teams } from '@/lib/appwrite'
-import { AppwriteException, ExecutionMethod, Query } from 'appwrite'
+import { Button, Card, Dialog, InputText, ProgressBar, ProgressSpinner, Select } from 'primevue'
+import { account, databases, storage } from '@/lib/appwrite'
+import { AppwriteException, Query } from 'appwrite'
 import { resizeImageFile } from '@/lib/imagePreprocess'
 import { enqueueJob, removeJob } from '@/lib/offlineQueue'
 import { processJobs } from '@/lib/offlineJobProcessor'
@@ -316,11 +362,18 @@ import {
   replaceAll as replaceAllCached,
   deleteFolder as removeCachedFolder,
 } from '@/lib/imageFolderCache'
+import {
+  ADMIN_ACCOUNT_NAME,
+  fetchUsers,
+  getCurrentUserContext,
+  selectableEmployees,
+} from '@/lib/employees'
 
-const ADMIN_TEAM_ID = '68866cde003207e2fbab'
+// Minimum horizontal travel (px) for a touch gesture to count as a swipe.
+const SWIPE_THRESHOLD = 50
 
 export default {
-  components: { Button, Card, Dialog, InputText, ProgressSpinner, Select },
+  components: { Button, Card, Dialog, InputText, ProgressBar, ProgressSpinner, Select },
 
   data() {
     return {
@@ -331,7 +384,12 @@ export default {
       customersLoading: false,
       userList: { users: [] },
       currentUserId: null,
+      currentUserName: null,
       isAdmin: false,
+      // Admins upload on behalf of an employee picked from the user list.
+      selectedOwnerId: null,
+      uploadProgress: null,
+      swipeStart: null,
 
       currentFolderId: null,
 
@@ -417,6 +475,48 @@ export default {
       return 'Nutze den Button oben, um einen Ordner anzulegen.'
     },
 
+    creatorOptions() {
+      const options = selectableEmployees(this.userList.users || [])
+      const isSharedAdmin = this.currentUserName === ADMIN_ACCOUNT_NAME
+      if (
+        this.currentUserId &&
+        !isSharedAdmin &&
+        !options.some((u) => u.$id === this.currentUserId)
+      ) {
+        options.push({ $id: this.currentUserId, name: this.currentUserName })
+      }
+      return options
+    },
+
+    uploadOwnerId() {
+      return this.isAdmin ? this.selectedOwnerId : this.currentUserId
+    },
+
+    uploadProgressPercent() {
+      if (!this.uploadProgress) return 0
+      return Math.round((this.uploadProgress.done / this.uploadProgress.total) * 100)
+    },
+
+    uploadProgressLabel() {
+      if (!this.uploadProgress) return ''
+      const { done, total, uploading } = this.uploadProgress
+      if (uploading) return total === 1 ? 'Bild wird hochgeladen …' : `${total} Bilder werden hochgeladen …`
+      return `Bild ${Math.min(done + 1, total)} von ${total} wird verarbeitet …`
+    },
+
+    viewingIndex() {
+      if (!this.viewingImage) return -1
+      return this.currentFolderImages.findIndex((img) => img.$id === this.viewingImage.$id)
+    },
+
+    hasPrevImage() {
+      return this.viewingIndex > 0
+    },
+
+    hasNextImage() {
+      return this.viewingIndex >= 0 && this.viewingIndex < this.currentFolderImages.length - 1
+    },
+
     availableCustomersForCurrentFolder() {
       const takenCustomerIds = new Set(
         this.folders
@@ -429,17 +529,12 @@ export default {
   },
 
   async mounted() {
-    try {
-      const user = await account.get()
+    const { user, isAdmin } = await getCurrentUserContext()
+    if (user) {
       this.currentUserId = user.$id
-      try {
-        const memberships = await teams.listMemberships(ADMIN_TEAM_ID)
-        this.isAdmin = memberships.memberships.some((m) => m.userId === user.$id)
-      } catch {
-        this.isAdmin = false
-      }
-    } catch (err) {
-      console.error('Failed to load current user', err)
+      this.currentUserName = user.name
+      this.isAdmin = isAdmin
+      if (isAdmin && user.name !== ADMIN_ACCOUNT_NAME) this.selectedOwnerId = user.$id
     }
 
     this.folders = await getAllFolders()
@@ -451,6 +546,10 @@ export default {
       this.fetchUserList(),
     ])
     this.loading = false
+  },
+
+  beforeUnmount() {
+    window.removeEventListener('keydown', this.onViewerKeydown)
   },
 
   methods: {
@@ -515,19 +614,7 @@ export default {
     },
 
     async fetchUserList() {
-      try {
-        const res = await functions.createExecution(
-          '69b18cbb0036de675223',
-          '{}',
-          false,
-          '/listusers',
-          ExecutionMethod.GET,
-        )
-        this.userList = JSON.parse(res.responseBody)
-      } catch (err) {
-        console.error('Failed to fetch user list', err)
-        this.userList = { users: [] }
-      }
+      this.userList = { users: await fetchUsers() }
     },
 
     resolveOwnerName(ownerId) {
@@ -775,47 +862,80 @@ export default {
       if (!this.currentUserId) return
       if (this.currentLevel < 3) return
 
-      const folderId = this.currentFolderId
+      const owner = this.uploadOwnerId
+      if (!owner) return
 
-      for (const file of files) {
-        if (!file.type.startsWith('image/')) {
-          this.$toast?.add({
-            severity: 'warn',
-            summary: 'Übersprungen',
-            detail: `${file.name} ist keine Bilddatei.`,
-            life: 3000,
-          })
-          continue
+      const folderId = this.currentFolderId
+      let queued = 0
+
+      this.uploadProgress = { done: 0, total: files.length, uploading: false }
+
+      try {
+        for (const file of files) {
+          if (!file.type.startsWith('image/')) {
+            this.$toast?.add({
+              severity: 'warn',
+              summary: 'Übersprungen',
+              detail: `${file.name} ist keine Bilddatei.`,
+              life: 3000,
+            })
+            this.uploadProgress.done++
+            continue
+          }
+          try {
+            const { base64, filename } = await resizeImageFile(file, {
+              maxEdge: 2048,
+              quality: 0.85,
+              owner,
+            })
+            await enqueueJob({
+              id: crypto.randomUUID(),
+              type: 'image-upload',
+              owner,
+              uploadedBy: this.currentUserId,
+              folderId,
+              filename,
+              imageBase64: base64,
+            })
+            queued++
+          } catch (err) {
+            console.error('Image preprocess failed', err)
+            this.$toast?.add({
+              severity: 'error',
+              summary: 'Fehler',
+              detail: `${file.name} konnte nicht verarbeitet werden.`,
+              life: 4000,
+            })
+          }
+          this.uploadProgress.done++
         }
-        try {
-          const { base64, filename } = await resizeImageFile(file, {
-            maxEdge: 2048,
-            quality: 0.85,
-            owner: this.currentUserId,
-          })
-          await enqueueJob({
-            id: crypto.randomUUID(),
-            type: 'image-upload',
-            owner: this.currentUserId,
-            folderId,
-            filename,
-            imageBase64: base64,
-          })
-        } catch (err) {
-          console.error('Image preprocess failed', err)
+
+        if (queued === 0) return
+
+        if (navigator.onLine) {
+          this.uploadProgress = { done: queued, total: queued, uploading: true }
+          await processJobs()
+          await this.refreshImages()
           this.$toast?.add({
-            severity: 'error',
-            summary: 'Fehler',
-            detail: `${file.name} konnte nicht verarbeitet werden.`,
+            severity: 'success',
+            summary: 'Hochgeladen',
+            detail: queued === 1 ? '1 Bild wurde hochgeladen.' : `${queued} Bilder wurden hochgeladen.`,
+            life: 3500,
+          })
+        } else {
+          this.$toast?.add({
+            severity: 'info',
+            summary: 'Offline',
+            detail:
+              queued === 1
+                ? 'Das Bild wird hochgeladen, sobald wieder eine Verbindung besteht.'
+                : `${queued} Bilder werden hochgeladen, sobald wieder eine Verbindung besteht.`,
             life: 4000,
           })
         }
+      } finally {
+        this.uploadProgress = null
       }
-
-      if (navigator.onLine) {
-        await processJobs()
-      }
-      await this.refreshImages()
     },
 
     thumbUrl(img) {
@@ -839,10 +959,42 @@ export default {
     openImage(img) {
       this.viewingImage = img
       this.viewingImageOpen = true
+      window.addEventListener('keydown', this.onViewerKeydown)
     },
 
     onImageDialogHide() {
       this.viewingImage = null
+      window.removeEventListener('keydown', this.onViewerKeydown)
+    },
+
+    showPrevImage() {
+      if (this.hasPrevImage) this.viewingImage = this.currentFolderImages[this.viewingIndex - 1]
+    },
+
+    showNextImage() {
+      if (this.hasNextImage) this.viewingImage = this.currentFolderImages[this.viewingIndex + 1]
+    },
+
+    onViewerKeydown(event) {
+      if (event.key === 'ArrowLeft') this.showPrevImage()
+      else if (event.key === 'ArrowRight') this.showNextImage()
+    },
+
+    onSwipeStart(event) {
+      const touch = event.changedTouches[0]
+      this.swipeStart = event.touches.length === 1 ? { x: touch.clientX, y: touch.clientY } : null
+    },
+
+    onSwipeEnd(event) {
+      if (!this.swipeStart) return
+      const touch = event.changedTouches[0]
+      const dx = touch.clientX - this.swipeStart.x
+      const dy = touch.clientY - this.swipeStart.y
+      this.swipeStart = null
+      // Ignore mostly-vertical gestures so scrolling a maximized dialog still works.
+      if (Math.abs(dx) < SWIPE_THRESHOLD || Math.abs(dx) < Math.abs(dy)) return
+      if (dx < 0) this.showNextImage()
+      else this.showPrevImage()
     },
 
     async downloadImage(img) {
@@ -1214,6 +1366,44 @@ export default {
   max-height: 75vh;
   object-fit: contain;
   display: block;
+  user-select: none;
+}
+
+.bilderuploads-dialog-viewer {
+  position: relative;
+  touch-action: pan-y;
+
+  &-nav {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 1;
+    opacity: 0.85;
+
+    &--prev {
+      left: 0.5rem;
+    }
+
+    &--next {
+      right: 0.5rem;
+    }
+  }
+}
+
+.bilderuploads-owner-select {
+  min-width: 12rem;
+}
+
+.bilderuploads-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  color: var(--p-surface-600, #475569);
+
+  .p-progressbar {
+    height: 0.5rem;
+  }
 }
 
 .bilderuploads-dialog-footer {

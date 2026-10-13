@@ -3,7 +3,6 @@ import { executeJob } from './executeJob'
 import { executeStundenzettelJob } from './executeStundenzettelJob'
 import {
   executeCustomerSignatureJob,
-  executeControlSignatureJob,
   executeDeleteStundenzettelJob,
 } from './executeStundenzettelSignatureJob'
 import { executeImageUploadJob, executeImageDeleteJob } from './executeImageUploadJob'
@@ -17,8 +16,6 @@ export async function processJobs() {
         await executeStundenzettelJob(job)
       } else if (job.type === 'customer-signature') {
         await executeCustomerSignatureJob(job)
-      } else if (job.type === 'control-signature') {
-        await executeControlSignatureJob(job)
       } else if (job.type === 'delete-stundenzettel') {
         await executeDeleteStundenzettelJob(job)
       } else if (job.type === 'image-upload') {
