@@ -651,20 +651,20 @@ export const fillStundenzettelPDF = async (
 
     // Set other row fields
     const rowFields = [
+      'anfahrt1',
+      'anfahrt2',
+      'anfahrtStd',
+      'anfahrtKm',
       'arbeitszeit1',
       'arbeitszeit2',
       'pause',
       'pauseStd',
-      'ueberstunden1',
-      'ueberstunden2',
-      'ueberstundenStd',
-      'anfahrt1',
-      'anfahrt2',
-      'anfahrtStd',
       'abfahrt1',
       'abfahrt2',
-      'km',
+      'abfahrtStd',
+      'abfahrtKm',
       'totalStd',
+      'totalKm',
     ]
     for (const field of rowFields) {
       const fieldKey = rowPrefix + field
@@ -682,10 +682,10 @@ export const fillStundenzettelPDF = async (
       .getTextField(fieldDataStundenzettel.textfields.totalPause)
       .setText(stundenData.totalPause.toString())
   }
-  if (stundenData.totalUeberstunden && fieldDataStundenzettel.textfields.totalUeberstunden) {
+  if (stundenData.totalAbfahrt && fieldDataStundenzettel.textfields.totalAbfahrt) {
     form
-      .getTextField(fieldDataStundenzettel.textfields.totalUeberstunden)
-      .setText(stundenData.totalUeberstunden.toString())
+      .getTextField(fieldDataStundenzettel.textfields.totalAbfahrt)
+      .setText(stundenData.totalAbfahrt.toString())
   }
   if (stundenData.totalAnfahrt && fieldDataStundenzettel.textfields.totalAnfahrt) {
     form

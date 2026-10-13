@@ -47,7 +47,7 @@ Maintenance reports ("Wartungsberichte"), the softening-plant check report ("Üb
 - [src/lib/pdf-lib.js](src/lib/pdf-lib.js) has one `fill{Type}PDF(inputValues, signatureBase64)` function per report type. They read transient form input from the Pinia `inputStore` ([src/stores/inputStore.js](src/stores/inputStore.js)), iterate the fillers JSON, and stamp the signature onto page 1 at hardcoded coordinates.
 - `*_Filler.vue` components in [src/components/](src/components/) render the per-type input UI that populates `inputStore.inputData`.
 - `addCustomerSignatureToPDF` in [src/lib/pdf-lib.js](src/lib/pdf-lib.js) mutates an already-uploaded timesheet PDF to add the customer signature later.
-- The timesheet template has 7 table rows and no per-row/total field for Abfahrt hours; `ROW_COUNT` in [Stundennachweis.vue](src/views/Stundennachweis.vue) must match the template.
+- The timesheet template has 7 table rows; `ROW_COUNT` in [Stundennachweis.vue](src/views/Stundennachweis.vue) must match it. Its table was re-laid-out by moving the existing AcroForm fields, so the `Textfeld N` numbers in `fillers/stundenzettel.json` do not follow the visual column order.
 
 ### Offline job queue (critical for field use)
 
