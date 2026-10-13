@@ -218,15 +218,18 @@
         @touchstart.passive="onSwipeStart"
         @touchend.passive="onSwipeEnd"
       >
-        <Button
+        <div
           v-if="hasPrevImage"
-          icon="fa-regular fa-chevron-left"
-          severity="secondary"
-          rounded
           class="bilderuploads-dialog-viewer-nav bilderuploads-dialog-viewer-nav--prev"
-          @click="showPrevImage"
-          aria-label="Vorheriges Bild"
-        />
+        >
+          <Button
+            icon="fa-solid fa-chevron-left"
+            severity="contrast"
+            rounded
+            @click="showPrevImage"
+            aria-label="Vorheriges Bild"
+          />
+        </div>
         <img
           :key="viewingImage.$id"
           :src="fullUrl(viewingImage)"
@@ -234,15 +237,18 @@
           draggable="false"
           class="bilderuploads-dialog-img"
         />
-        <Button
+        <div
           v-if="hasNextImage"
-          icon="fa-regular fa-chevron-right"
-          severity="secondary"
-          rounded
           class="bilderuploads-dialog-viewer-nav bilderuploads-dialog-viewer-nav--next"
-          @click="showNextImage"
-          aria-label="Nächstes Bild"
-        />
+        >
+          <Button
+            icon="fa-solid fa-chevron-right"
+            severity="contrast"
+            rounded
+            @click="showNextImage"
+            aria-label="Nächstes Bild"
+          />
+        </div>
       </div>
       <template #footer>
         <div v-if="viewingImage" class="bilderuploads-dialog-footer">
@@ -1363,7 +1369,9 @@ export default {
 
 .bilderuploads-dialog-img {
   width: 100%;
-  max-height: 75vh;
+  // Leaves room for the dialog header and footer so the image (and with it
+  // the navigation buttons) never scrolls out of view.
+  max-height: calc(90vh - 14rem);
   object-fit: contain;
   display: block;
   user-select: none;
@@ -1378,7 +1386,14 @@ export default {
     top: 50%;
     transform: translateY(-50%);
     z-index: 1;
-    opacity: 0.85;
+
+    :deep(.p-button) {
+      width: 3rem;
+      height: 3rem;
+      font-size: 1.1rem;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+      border: 2px solid #fff;
+    }
 
     &--prev {
       left: 0.5rem;
