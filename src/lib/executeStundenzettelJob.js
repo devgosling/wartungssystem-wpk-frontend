@@ -1,4 +1,5 @@
-import { storage, databases, ID } from './appwrite'
+import { databases, ID } from './appwrite'
+import { uploadFile } from './fileStore'
 
 export async function executeStundenzettelJob(job) {
   const { pdfBase64, inputValues } = job
@@ -15,7 +16,7 @@ export async function executeStundenzettelJob(job) {
   const file = new File([blob], filename, { type: 'application/pdf' })
 
   // Upload PDF
-  await storage.createFile('storage', fileID, file)
+  await uploadFile(fileID, file)
 
   console.log(inputValues)
 

@@ -876,7 +876,8 @@
   </Dialog>
 </template>
 <script>
-import { account, databases, functions, storage } from '@/lib/appwrite'
+import { account, databases, functions } from '@/lib/appwrite'
+import { deleteFile, getFile, getFileBlob, replaceFile } from '@/lib/fileStore'
 import {
   Toolbar,
   Button,
@@ -1700,7 +1701,7 @@ export default {
         accept: async () => {
           this.sendingBericht = berichtIndex
           try {
-            const fileData = await storage.getFile('storage', data.stundenzettelId)
+            const fileData = await getFile(data.stundenzettelId)
             const res = await functions.createExecution(
               '69b18cbb0036de675223',
               JSON.stringify({
@@ -1742,19 +1743,7 @@ export default {
     async viewBericht(data, berichtIndex) {
       this.viewingBericht.loading = berichtIndex
       try {
-        let fileDownload = await storage.getFileDownload(
-          'storage',
-          data.stundenzettelId,
-        )
-        let fileData = await storage.getFile('storage', data.stundenzettelId)
-        let jwtObject = await account.createJWT()
-        // Add cache-busting and no-store to prevent showing old cached version
-        const cacheBuster = `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`
-        let fileResponse = await fetch(cacheBuster, {
-          headers: { 'x-appwrite-jwt': jwtObject.jwt },
-          cache: 'no-store',
-        })
-        let blob = await fileResponse.blob()
+        const { blob, name: fileName } = await getFileBlob(data.stundenzettelId)
         let buffer = await blob.arrayBuffer()
         let buffer2 = await blob.arrayBuffer()
         let fileBytes2 = new Uint8Array(buffer2)
@@ -1762,7 +1751,7 @@ export default {
 
         let pages = await getAmountOfPagesInPDF(buffer)
 
-        this.viewingBericht.name = fileData.name
+        this.viewingBericht.name = fileName
         this.viewingBericht.data = data
         if (pages > 1) this.viewingBericht.img2 = await this.turnPDFToPNG(fileBytes2, 2)
         else this.viewingBericht.img2 = null
@@ -1798,22 +1787,12 @@ export default {
     async downloadBericht(data, berichtIndex) {
       this.downloadingBericht = berichtIndex
       try {
-        let fileDownload = await storage.getFileDownload(
-          'storage',
-          data.stundenzettelId,
-        )
-
-        let fileData = await storage.getFile('storage', data.stundenzettelId)
-        let jwtObject = await account.createJWT()
-        let fileResponse = await fetch(fileDownload, {
-          headers: { 'x-appwrite-jwt': jwtObject.jwt },
-        })
-        let blob = await fileResponse.blob()
+        const { blob, name: fileName } = await getFileBlob(data.stundenzettelId)
         let blobURL = URL.createObjectURL(blob)
 
         const a = document.createElement('a')
         a.setAttribute('href', blobURL)
-        a.setAttribute('download', fileData.name)
+        a.setAttribute('download', fileName)
         a.style.display = 'none'
         document.body.appendChild(a)
 
@@ -1874,7 +1853,7 @@ export default {
 
           try {
             if (!navigator.onLine) throw new Error('Offline')
-            await storage.deleteFile('storage', data.stundenzettelId)
+            await deleteFile(data.stundenzettelId)
             await databases.deleteDocument('wartungssystem', 'stundenzettel', data.$id)
 
             this.$toast.add({
@@ -2041,32 +2020,17 @@ export default {
         const signatureBase64 = this.customerSignDialog.signpad.toDataURL()
 
         // Download the existing PDF
-        const fileDownload = await storage.getFileDownload(
-          'storage',
-          data.stundenzettelId,
-        )
-        const fileData = await storage.getFile('storage', data.stundenzettelId)
-        const jwtObject = await account.createJWT()
-        const fileResponse = await fetch(
-          `${fileDownload}${fileDownload.includes('?') ? '&' : '?'}_t=${Date.now()}`,
-          {
-            headers: { 'x-appwrite-jwt': jwtObject.jwt },
-            cache: 'no-store',
-          },
-        )
-        const blob = await fileResponse.blob()
+        const { blob, name: fileName } = await getFileBlob(data.stundenzettelId)
         const pdfBuffer = await blob.arrayBuffer()
 
         // Add customer signature to PDF
         const [newPdfBytes] = await addCustomerSignatureToPDF(pdfBuffer, signatureBase64)
 
-        // Delete old file and upload new one with same ID and same name
-        await storage.deleteFile('storage', data.stundenzettelId)
-
-        const newFile = new File([newPdfBytes], fileData.name, {
-          type: 'application/pdf',
-        })
-        await storage.createFile('storage', data.stundenzettelId, newFile)
+        // Replace the file in place, keeping ID and name
+        await replaceFile(
+          data.stundenzettelId,
+          new File([newPdfBytes], fileName, { type: 'application/pdf' }),
+        )
 
         // Update the document in the database
         await databases.updateDocument('wartungssystem', 'stundenzettel', data.$id, {

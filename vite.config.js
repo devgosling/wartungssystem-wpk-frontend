@@ -35,6 +35,17 @@ export default defineConfig({
             }
           },
           {
+            // Report PDFs from the file service (wartungssystem-dateien), so a
+            // report that was opened before can still be viewed offline.
+            urlPattern: ({ url }) => /^\/v1\/[^/]+\/files\/[^/]+\/download$/.test(url.pathname),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'dateien-cache',
+              expiration: { maxEntries: 30, maxAgeSeconds: 7 * 24 * 60 * 60 },
+              cacheableResponse: { statuses: [200] }
+            }
+          },
+          {
             urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp)$/,
             handler: 'CacheFirst',
             options: {

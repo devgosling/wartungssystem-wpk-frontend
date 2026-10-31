@@ -1,4 +1,5 @@
-import { storage, databases, ID } from './appwrite'
+import { databases, ID } from './appwrite'
+import { deleteFile, uploadFile } from './fileStore'
 import { Permission, Role } from 'appwrite'
 
 const ADMIN_TEAM_ID = '68866cde003207e2fbab'
@@ -33,7 +34,7 @@ export async function executeImageUploadJob(job) {
   const fileId = ID.unique()
   const perms = filePermissions(owner, uploadedBy)
 
-  await storage.createFile('storage', fileId, file, perms)
+  await uploadFile(fileId, file, { owner })
 
   await databases.createDocument(
     'wartungssystem',
@@ -46,6 +47,6 @@ export async function executeImageUploadJob(job) {
 
 export async function executeImageDeleteJob(job) {
   const { documentId, fileId } = job
-  await storage.deleteFile('storage', fileId)
+  await deleteFile(fileId)
   await databases.deleteDocument('wartungssystem', 'imageupload', documentId)
 }

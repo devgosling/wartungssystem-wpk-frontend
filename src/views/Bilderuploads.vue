@@ -167,6 +167,7 @@
               :src="thumbUrl(img)"
               alt=""
               draggable="false"
+              @error="onImageError($event, img)"
               :title="`${resolveOwnerName(img.owner)} • ${formatUploadDate(img.$createdAt)}`"
               @click="openImage(img)"
             />
@@ -235,6 +236,7 @@
           :src="fullUrl(viewingImage)"
           alt=""
           draggable="false"
+          @error="onImageError($event, viewingImage)"
           class="bilderuploads-dialog-img"
         />
         <div
@@ -356,7 +358,14 @@
 
 <script>
 import { Button, Card, Dialog, InputText, ProgressBar, ProgressSpinner, Select } from 'primevue'
-import { account, databases, storage } from '@/lib/appwrite'
+import { databases } from '@/lib/appwrite'
+import {
+  deleteFile,
+  ensureReadToken,
+  getFileBlob,
+  getFileViewUrl,
+  getLegacyFileViewUrl,
+} from '@/lib/fileStore'
 import { AppwriteException, Query } from 'appwrite'
 import { resizeImageFile } from '@/lib/imagePreprocess'
 import { enqueueJob, removeJob } from '@/lib/offlineQueue'
@@ -546,6 +555,7 @@ export default {
     this.folders = await getAllFolders()
 
     await Promise.all([
+      ensureReadToken(),
       this.refreshFolders(),
       this.refreshImages(),
       this.fetchCustomers(),
@@ -945,11 +955,18 @@ export default {
     },
 
     thumbUrl(img) {
-      return storage.getFileView('storage', img.associatedFile)
+      return getFileViewUrl(img.associatedFile)
     },
 
     fullUrl(img) {
-      return storage.getFileView('storage', img.associatedFile)
+      return getFileViewUrl(img.associatedFile)
+    },
+
+    // Images not migrated from Appwrite yet; see LEGACY_BUCKET in fileStore.js.
+    onImageError(event, img) {
+      if (event.target.dataset.legacy) return
+      event.target.dataset.legacy = '1'
+      event.target.src = getLegacyFileViewUrl(img.associatedFile)
     },
 
     formatUploadDate(iso) {
@@ -1006,15 +1023,11 @@ export default {
     async downloadImage(img) {
       this.downloadingImage = true
       try {
-        const url = storage.getFileDownload('storage', img.associatedFile)
-        const fileMeta = await storage.getFile('storage', img.associatedFile)
-        const jwt = (await account.createJWT()).jwt
-        const res = await fetch(url, { headers: { 'x-appwrite-jwt': jwt } })
-        const blob = await res.blob()
+        const { blob, name } = await getFileBlob(img.associatedFile)
         const blobUrl = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = blobUrl
-        a.download = fileMeta.name
+        a.download = name
         a.style.display = 'none'
         document.body.appendChild(a)
         a.click()
@@ -1044,7 +1057,7 @@ export default {
           this.deletingImage = true
           try {
             if (navigator.onLine) {
-              await storage.deleteFile('storage', img.associatedFile)
+              await deleteFile(img.associatedFile)
               await databases.deleteDocument('wartungssystem', 'imageupload', img.$id)
             } else {
               await enqueueJob({
